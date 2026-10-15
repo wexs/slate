@@ -1,0 +1,482 @@
+import Foundation
+import SwiftUI
+import Translation
+import NaturalLanguage
+import Combine
+
+@MainActor
+final class TranslationService: ObservableObject {
+    static let shared = TranslationService()
+    
+    @Published var inputText: String = ""
+    @Published var translatedText: String = ""
+    @Published var isTranslating: Bool = false
+    @Published var hasSubmitted: Bool = false
+    @Published var lastTranslatedInput: String = ""
+    @Published var errorMessage: String? = nil
+    
+    var hasContent: Bool {
+        return !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+               !translatedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+               hasSubmitted
+    }
+    
+    @Published var sourceLanguage: AppLanguage = .auto
+    @Published var targetLanguage: AppLanguage = .autoSelect
+    @Published var detectedSourceLanguage: AppLanguage? = nil
+    private var lastTranslatedPairKey: String = ""
+    
+    @Published var primaryLanguage: AppLanguage {
+        didSet {
+            UserDefaults.standard.set(primaryLanguage.id, forKey: "app_primary_language")
+        }
+    }
+    
+    @Published var secondaryLanguage: AppLanguage {
+        didSet {
+            UserDefaults.standard.set(secondaryLanguage.id, forKey: "app_secondary_language")
+        }
+    }
+    
+    public var effectiveSourceLanguage: AppLanguage {
+        if sourceLanguage.id != "auto" {
+            return sourceLanguage
+        }
+        if let detected = detectedSourceLanguage {
+            return detected
+        }
+        let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            return AppLanguage.detectLanguage(for: trimmed)
+        }
+        return .english
+    }
+    
+    public var effectiveTargetLanguage: AppLanguage {
+        if targetLanguage.id != "auto" {
+            return targetLanguage
+        }
+        
+        let effSource = effectiveSourceLanguage
+        let isSourcePrimary: Bool
+        if primaryLanguage.isChinese {
+            isSourcePrimary = effSource.isChinese
+        } else {
+            isSourcePrimary = (effSource.id == primaryLanguage.id)
+        }
+        
+        // When input is primary language, translate to secondary; otherwise translate to primary
+        if isSourcePrimary {
+            return secondaryLanguage
+        } else {
+            return primaryLanguage
+        }
+    }
+    
+    @Published var currentProvider: TranslationProvider {
+        didSet {
+            UserDefaults.standard.set(currentProvider.rawValue, forKey: "app_translation_provider")
+            if hasSubmitted && !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                submitTranslation()
+            }
+        }
+    }
+    
+    @Published var configuration: TranslationSession.Configuration?
+    
+    private var activeSession: TranslationSession?
+    private var translationTask: Task<Void, Never>?
+    
+    init() {
+        let savedProvider = UserDefaults.standard.string(forKey: "app_translation_provider") ?? "system"
+        self.currentProvider = TranslationProvider(rawValue: savedProvider) ?? .system
+        
+        let primaryId = UserDefaults.standard.string(forKey: "app_primary_language") ?? "zh-Hans"
+        let primary = AppLanguage.concreteTargetLanguages.first(where: { $0.id == primaryId }) ?? .simplifiedChinese
+        self.primaryLanguage = primary
+        
+        let secondaryId = UserDefaults.standard.string(forKey: "app_secondary_language") ?? "en"
+        let secondary = AppLanguage.concreteTargetLanguages.first(where: { $0.id == secondaryId }) ?? .english
+        self.secondaryLanguage = secondary
+        
+        self.sourceLanguage = .auto
+        self.targetLanguage = .autoSelect
+        
+        setupConfiguration()
+    }
+    
+    func setProvider(_ provider: TranslationProvider) {
+        guard provider != currentProvider else { return }
+        currentProvider = provider
+    }
+    
+    func setupConfiguration() {
+        let pair = resolveLanguagePair(for: inputText)
+        self.configuration = TranslationSession.Configuration(
+            source: pair.source,
+            target: pair.target
+        )
+    }
+    
+    func handleSession(_ session: TranslationSession) async {
+        self.activeSession = session
+        try? await session.prepareTranslation()
+        
+        if hasSubmitted && currentProvider == .system {
+            let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                await performTranslation(text: trimmed, with: session)
+            }
+        }
+        
+        while !Task.isCancelled {
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+        }
+    }
+    
+    func onInputChanged(_ newText: String) {
+        let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            clearContent()
+        } else {
+            adjustLanguagesIfNeeded(for: trimmed)
+        }
+    }
+    
+    public func setPrimaryLanguage(_ lang: AppLanguage) {
+        guard lang != primaryLanguage else { return }
+        primaryLanguage = lang
+        if secondaryLanguage.id == lang.id {
+            secondaryLanguage = (lang.id == "en" ? .simplifiedChinese : .english)
+        }
+        setupConfiguration()
+    }
+    
+    public func setSecondaryLanguage(_ lang: AppLanguage) {
+        guard lang != secondaryLanguage else { return }
+        secondaryLanguage = lang
+        if primaryLanguage.id == lang.id {
+            primaryLanguage = (lang.id == "zh-Hans" ? .english : .simplifiedChinese)
+        }
+        setupConfiguration()
+    }
+    
+    public func adjustLanguagesIfNeeded(for text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            detectedSourceLanguage = nil
+            return
+        }
+        
+        let detected = AppLanguage.detectLanguage(for: trimmed)
+        self.detectedSourceLanguage = detected
+        
+        if currentProvider == .system {
+            setupConfiguration()
+        }
+    }
+    
+    func clearContent() {
+        translationTask?.cancel()
+        SpeechManager.shared.stop()
+        inputText = ""
+        translatedText = ""
+        lastTranslatedInput = ""
+        lastTranslatedPairKey = ""
+        detectedSourceLanguage = nil
+        hasSubmitted = false
+        isTranslating = false
+        errorMessage = nil
+        if currentProvider == .system {
+            setupConfiguration()
+        }
+    }
+    
+    func submitTranslation(onAlreadyTranslatedCopy: (() -> Void)? = nil) {
+        let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        
+        adjustLanguagesIfNeeded(for: trimmed)
+        
+        let currentPairKey = "\(effectiveSourceLanguage.id)_\(effectiveTargetLanguage.id)"
+        
+        // If already translated for the same input and same pair, copy to clipboard
+        if hasSubmitted && !translatedText.isEmpty && trimmed == lastTranslatedInput && currentPairKey == lastTranslatedPairKey {
+            onAlreadyTranslatedCopy?()
+            return
+        }
+        
+        lastTranslatedPairKey = currentPairKey
+        hasSubmitted = true
+        isTranslating = true
+        errorMessage = nil
+        
+        if currentProvider == .system {
+            Task { [weak self] in
+                guard let self = self else { return }
+                await self.checkConfigurationAndTranslate(for: trimmed)
+            }
+        } else {
+            performRemoteTranslation(for: trimmed, provider: currentProvider)
+        }
+    }
+    
+    // MARK: - Remote Translation Dispatch
+    private func performRemoteTranslation(for text: String, provider: TranslationProvider) {
+        translationTask?.cancel()
+        
+        // Check credentials if required
+        if provider.requiresConfig && !provider.isConfigured {
+            self.isTranslating = false
+            self.errorMessage = "请先在 ⚙ 设置 中配置「\(provider.title)」的 API 密钥"
+            return
+        }
+        
+        translationTask = Task { [weak self] in
+            guard let self = self else { return }
+            do {
+                let result: String
+                switch provider {
+                case .system:
+                    return
+                case .google:
+                    let pair = self.resolveGoogleLanguagePair(for: text)
+                    result = try await GoogleTranslator.translate(
+                        text: text,
+                        sourceCode: pair.source,
+                        targetCode: pair.target,
+                        apiKey: GoogleConfig.shared.apiKey
+                    )
+                case .deepl:
+                    let pair = self.resolveDeepLLanguagePair(for: text)
+                    result = try await DeepLTranslator.translate(
+                        text: text,
+                        sourceCode: pair.source,
+                        targetCode: pair.target,
+                        authKey: DeepLConfig.shared.authKey
+                    )
+                case .microsoft:
+                    let pair = self.resolveMicrosoftLanguagePair(for: text)
+                    result = try await MicrosoftTranslator.translate(
+                        text: text,
+                        sourceCode: pair.source,
+                        targetCode: pair.target,
+                        apiKey: MicrosoftConfig.shared.apiKey,
+                        region: MicrosoftConfig.shared.region
+                    )
+                case .baidu:
+                    let pair = self.resolveBaiduLanguagePair(for: text)
+                    result = try await BaiduTranslator.translate(
+                        text: text,
+                        sourceCode: pair.source,
+                        targetCode: pair.target,
+                        appId: BaiduConfig.shared.appId,
+                        secretKey: BaiduConfig.shared.secretKey
+                    )
+                case .tencent:
+                    let pair = self.resolveTencentLanguagePair(for: text)
+                    result = try await TencentTranslator.translate(
+                        text: text,
+                        sourceCode: pair.source,
+                        targetCode: pair.target,
+                        secretId: TencentConfig.shared.secretId,
+                        secretKey: TencentConfig.shared.secretKey,
+                        region: TencentConfig.shared.region
+                    )
+                case .alibaba:
+                    let pair = self.resolveAlibabaLanguagePair(for: text)
+                    result = try await AlibabaTranslator.translate(
+                        text: text,
+                        sourceCode: pair.source,
+                        targetCode: pair.target,
+                        accessKeyId: AlibabaConfig.shared.accessKeyId,
+                        accessKeySecret: AlibabaConfig.shared.accessKeySecret
+                    )
+                case .volcengine:
+                    let pair = self.resolveVolcengineLanguagePair(for: text)
+                    result = try await VolcengineTranslator.translate(
+                        text: text,
+                        sourceCode: pair.source,
+                        targetCode: pair.target,
+                        accessKey: VolcengineConfig.shared.accessKey,
+                        secretKey: VolcengineConfig.shared.secretKey
+                    )
+                }
+                
+                guard !Task.isCancelled else { return }
+                self.translatedText = result
+                self.lastTranslatedInput = text
+                self.isTranslating = false
+                self.errorMessage = nil
+            } catch {
+                guard !Task.isCancelled else { return }
+                if (error as? CancellationError) != nil { return }
+                self.isTranslating = false
+                self.errorMessage = error.localizedDescription
+            }
+        }
+    }
+    
+    // MARK: - Language Pair Resolvers
+    public func resolveGoogleLanguagePair(for text: String) -> (source: String, target: String) {
+        let sourceCode = (sourceLanguage.id == "auto" ? "auto" : (sourceLanguage.googleCode ?? "auto"))
+        let targetCode = effectiveTargetLanguage.googleCode ?? "zh-CN"
+        return (sourceCode, targetCode)
+    }
+    
+    public func resolveDeepLLanguagePair(for text: String) -> (source: String?, target: String) {
+        let sourceCode = (sourceLanguage.id == "auto" ? nil : sourceLanguage.deeplSourceCode)
+        let targetCode = effectiveTargetLanguage.deeplCode ?? "ZH"
+        return (sourceCode, targetCode)
+    }
+    
+    public func resolveMicrosoftLanguagePair(for text: String) -> (source: String?, target: String) {
+        let sourceCode = (sourceLanguage.id == "auto" ? nil : sourceLanguage.microsoftCode)
+        let targetCode = effectiveTargetLanguage.microsoftCode ?? "zh-Hans"
+        return (sourceCode, targetCode)
+    }
+    
+    public func resolveBaiduLanguagePair(for text: String) -> (source: String, target: String) {
+        let sourceCode = (sourceLanguage.id == "auto" ? "auto" : (sourceLanguage.baiduCode ?? "auto"))
+        let targetCode = effectiveTargetLanguage.baiduCode ?? "zh"
+        return (sourceCode, targetCode)
+    }
+    
+    public func resolveTencentLanguagePair(for text: String) -> (source: String, target: String) {
+        let sourceCode = (sourceLanguage.id == "auto" ? "auto" : (sourceLanguage.tencentCode ?? "auto"))
+        let targetCode = effectiveTargetLanguage.tencentCode ?? "zh"
+        return (sourceCode, targetCode)
+    }
+    
+    public func resolveAlibabaLanguagePair(for text: String) -> (source: String, target: String) {
+        let sourceCode = (sourceLanguage.id == "auto" ? "auto" : (sourceLanguage.alibabaCode ?? "auto"))
+        let targetCode = effectiveTargetLanguage.alibabaCode ?? "zh"
+        return (sourceCode, targetCode)
+    }
+    
+    public func resolveVolcengineLanguagePair(for text: String) -> (source: String?, target: String) {
+        let sourceCode = (sourceLanguage.id == "auto" ? nil : sourceLanguage.volcengineCode)
+        let targetCode = effectiveTargetLanguage.volcengineCode ?? "zh"
+        return (sourceCode, targetCode)
+    }
+    
+    // MARK: - Apple System Translation
+    private func checkConfigurationAndTranslate(for text: String) async {
+        let pair = resolveLanguagePair(for: text)
+        
+        let needConfigUpdate = (configuration?.source != pair.source) ||
+                               (configuration?.target != pair.target)
+        
+        if needConfigUpdate {
+            activeSession = nil
+            configuration = TranslationSession.Configuration(
+                source: pair.source,
+                target: pair.target
+            )
+            return
+        }
+        
+        if let session = activeSession {
+            await performTranslation(text: text, with: session)
+        } else {
+            configuration?.invalidate()
+        }
+    }
+    
+    private func performTranslation(text: String, with session: TranslationSession) async {
+        translationTask?.cancel()
+        
+        translationTask = Task { [weak self] in
+            guard let self = self else { return }
+            do {
+                let response = try await session.translate(text)
+                guard !Task.isCancelled else { return }
+                
+                self.translatedText = response.targetText
+                self.lastTranslatedInput = text
+                self.isTranslating = false
+                self.errorMessage = nil
+            } catch {
+                guard !Task.isCancelled else { return }
+                if (error as? CancellationError) != nil { return }
+                
+                self.isTranslating = false
+                self.errorMessage = error.localizedDescription
+            }
+        }
+    }
+    
+    func swapLanguages() {
+        if sourceLanguage.id == "auto" && targetLanguage.id == "auto" {
+            let curSource = effectiveSourceLanguage
+            let curTarget = effectiveTargetLanguage
+            sourceLanguage = curTarget
+            targetLanguage = curSource
+        } else if sourceLanguage.id == "auto" {
+            let currentSource = effectiveSourceLanguage
+            let currentTarget = targetLanguage
+            sourceLanguage = currentTarget
+            targetLanguage = currentSource
+        } else if targetLanguage.id == "auto" {
+            let currentSource = sourceLanguage
+            let currentTarget = effectiveTargetLanguage
+            sourceLanguage = currentTarget
+            targetLanguage = currentSource
+        } else {
+            let oldSource = sourceLanguage
+            let oldTarget = targetLanguage
+            sourceLanguage = oldTarget
+            targetLanguage = oldSource
+        }
+        
+        activeSession = nil
+        setupConfiguration()
+        if hasSubmitted && !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            submitTranslation()
+        }
+    }
+    
+    func setSource(_ lang: AppLanguage) {
+        guard lang != sourceLanguage else { return }
+        sourceLanguage = lang
+        if sourceLanguage.id != "auto" && sourceLanguage == targetLanguage {
+            targetLanguage = (sourceLanguage.id == primaryLanguage.id ? secondaryLanguage : primaryLanguage)
+        }
+        activeSession = nil
+        setupConfiguration()
+        if hasSubmitted && !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            submitTranslation()
+        }
+    }
+    
+    func setTarget(_ lang: AppLanguage) {
+        guard lang != targetLanguage else { return }
+        targetLanguage = lang
+        if sourceLanguage.id != "auto" && sourceLanguage == targetLanguage {
+            sourceLanguage = (targetLanguage.id == primaryLanguage.id ? secondaryLanguage : primaryLanguage)
+        }
+        activeSession = nil
+        setupConfiguration()
+        if hasSubmitted && !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            submitTranslation()
+        }
+    }
+    
+    func resolveLanguagePair(for text: String) -> (source: Locale.Language, target: Locale.Language) {
+        let effSource = effectiveSourceLanguage
+        let sourceLocale = effSource.localeLanguage ?? Locale.Language(identifier: "en")
+        let effTarget = effectiveTargetLanguage
+        var targetLocale = effTarget.localeLanguage ?? (primaryLanguage.localeLanguage ?? Locale.Language(identifier: "zh-Hans"))
+        
+        // Ensure source and target are not identical
+        if sourceLocale.languageCode == targetLocale.languageCode {
+            if sourceLocale.languageCode?.identifier == primaryLanguage.localeLanguage?.languageCode?.identifier {
+                targetLocale = secondaryLanguage.localeLanguage ?? Locale.Language(identifier: "en")
+            } else {
+                targetLocale = primaryLanguage.localeLanguage ?? Locale.Language(identifier: "zh-Hans")
+            }
+        }
+        
+        return (sourceLocale, targetLocale)
+    }
+}
