@@ -64,7 +64,13 @@ public final class ScreenshotOCRManager: ObservableObject {
             await MainActor.run {
                 ScreenshotOCRManager.shared.isCapturing = false
                 if let text = recognizedText, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    WindowManager.shared.showWindow(withInitialText: text, autoTranslate: true)
+                    let finalText: String
+                    if UserDefaults.standard.bool(forKey: "app_smart_line_break_merge") {
+                        finalText = TextProcessingUtils.smartMergeLineBreaks(text)
+                    } else {
+                        finalText = text
+                    }
+                    WindowManager.shared.showWindow(withInitialText: finalText, autoTranslate: true)
                 }
             }
         }

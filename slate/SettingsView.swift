@@ -123,6 +123,7 @@ public struct SettingsView: View {
     
     @AppStorage("app_translation_provider") private var selectedProvider: String = TranslationProvider.system.rawValue
     @AppStorage("app_clear_content_on_open") private var clearContentOnOpen: Bool = true
+    @AppStorage("app_smart_line_break_merge") private var smartLineBreakMerge: Bool = true
     
     public init(initialTab: SettingsTab = .general, initialEditingProvider: TranslationProvider? = nil, initialEditingSpeechProvider: SpeechProvider? = nil) {
         if let speechProvider = initialEditingSpeechProvider {
@@ -310,7 +311,31 @@ public struct SettingsView: View {
             // 组间留白
             Spacer().frame(height: 6)
             
-            // 2. 窗口交互行为组
+            // 2. 文本处理设置组
+            HStack(alignment: .top, spacing: 14) {
+                Text(loc("text_processing"))
+                    .font(.system(size: 13))
+                    .foregroundColor(.primary)
+                    .frame(width: labelWidth, alignment: .trailing)
+                    .padding(.top, 2)
+                
+                VStack(alignment: .leading, spacing: 3) {
+                    Toggle(loc("smart_line_break_merge"), isOn: $smartLineBreakMerge)
+                        .toggleStyle(.checkbox)
+                    
+                    Text(loc("smart_line_break_merge_desc"))
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 18)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(width: rightColumnWidth, alignment: .leading)
+            }
+            
+            // 组间留白
+            Spacer().frame(height: 6)
+            
+            // 3. 窗口交互行为组
             HStack(alignment: .top, spacing: 14) {
                 Text(loc("window_behavior"))
                     .font(.system(size: 13))

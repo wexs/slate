@@ -250,9 +250,18 @@ final class TranslationService: ObservableObject {
     }
     
     func submitTranslation(onAlreadyTranslatedCopy: (() -> Void)? = nil) {
-        let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        var rawInput = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !rawInput.isEmpty else { return }
         
+        if UserDefaults.standard.bool(forKey: "app_smart_line_break_merge") {
+            let processed = TextProcessingUtils.smartMergeLineBreaks(rawInput)
+            if processed != rawInput {
+                rawInput = processed
+                self.inputText = processed
+            }
+        }
+        
+        let trimmed = rawInput
         let currentPairKey = "\(currentProvider.rawValue)_\(effectiveSourceLanguage.id)_\(effectiveTargetLanguage.id)"
         
         // If already translated for the same input, same provider, and same pair, copy to clipboard
@@ -265,8 +274,17 @@ final class TranslationService: ObservableObject {
         
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            let trimmed = self.inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { return }
+            var rawInput = self.inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !rawInput.isEmpty else { return }
+            
+            if UserDefaults.standard.bool(forKey: "app_smart_line_break_merge") {
+                let processed = TextProcessingUtils.smartMergeLineBreaks(rawInput)
+                if processed != rawInput {
+                    rawInput = processed
+                    self.inputText = processed
+                }
+            }
+            let trimmed = rawInput
             
             self.adjustLanguagesIfNeeded(for: trimmed)
             let currentPairKey = "\(self.currentProvider.rawValue)_\(self.effectiveSourceLanguage.id)_\(self.effectiveTargetLanguage.id)"

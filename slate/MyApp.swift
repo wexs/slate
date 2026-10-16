@@ -9,7 +9,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Register default preference values
         UserDefaults.standard.register(defaults: [
             "app_clear_content_on_open": true,
-            "app_menu_bar_icon": MenuBarIconType.default.rawValue
+            "app_menu_bar_icon": MenuBarIconType.default.rawValue,
+            "app_smart_line_break_merge": true
         ])
         
         // Setup Menu Bar Status Icon

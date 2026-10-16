@@ -194,7 +194,13 @@ public final class SelectionTranslationManager: ObservableObject {
             
             await MainActor.run {
                 if let text = selected, !text.isEmpty {
-                    WindowManager.shared.showWindow(withInitialText: text, autoTranslate: true)
+                    let finalText: String
+                    if UserDefaults.standard.bool(forKey: "app_smart_line_break_merge") {
+                        finalText = TextProcessingUtils.smartMergeLineBreaks(text)
+                    } else {
+                        finalText = text
+                    }
+                    WindowManager.shared.showWindow(withInitialText: finalText, autoTranslate: true)
                 } else {
                     WindowManager.shared.showWindow(withInitialText: nil, autoTranslate: false)
                 }
