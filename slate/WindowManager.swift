@@ -241,6 +241,7 @@ final class WindowManager: NSObject, NSWindowDelegate, ObservableObject {
     
     func hideWindow() {
         SpeechManager.shared.stop()
+        TranslationService.shared.invalidateActiveSession()
         if isClearContentOnOpenEnabled {
             NotificationCenter.default.post(name: NSNotification.Name("ClearTranslationContent"), object: nil)
         }

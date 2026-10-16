@@ -82,7 +82,8 @@ final class TranslationService: ObservableObject {
             } else {
                 setupConfiguration(immediate: true)
             }
-            if hasSubmitted && !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty && (hasSubmitted || !translatedText.isEmpty) {
                 submitTranslation()
             }
         }
@@ -158,6 +159,10 @@ final class TranslationService: ObservableObject {
     func handleSession(_ session: TranslationSession) async {
         guard currentProvider == .system else { return }
         self.activeSession = session
+        defer {
+            self.activeSession = nil
+        }
+        
         try? await session.prepareTranslation()
         
         if hasSubmitted && currentProvider == .system {
@@ -170,6 +175,11 @@ final class TranslationService: ObservableObject {
         while !Task.isCancelled {
             try? await Task.sleep(nanoseconds: 1_000_000_000)
         }
+    }
+    
+    public func invalidateActiveSession() {
+        self.activeSession = nil
+        self.translationTask?.cancel()
     }
     
     func onInputChanged(_ newText: String) {
@@ -243,9 +253,9 @@ final class TranslationService: ObservableObject {
         let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         
-        let currentPairKey = "\(effectiveSourceLanguage.id)_\(effectiveTargetLanguage.id)"
+        let currentPairKey = "\(currentProvider.rawValue)_\(effectiveSourceLanguage.id)_\(effectiveTargetLanguage.id)"
         
-        // If already translated for the same input and same pair, copy to clipboard
+        // If already translated for the same input, same provider, and same pair, copy to clipboard
         if hasSubmitted && !translatedText.isEmpty && trimmed == lastTranslatedInput && currentPairKey == lastTranslatedPairKey {
             DispatchQueue.main.async {
                 onAlreadyTranslatedCopy?()
@@ -259,7 +269,7 @@ final class TranslationService: ObservableObject {
             guard !trimmed.isEmpty else { return }
             
             self.adjustLanguagesIfNeeded(for: trimmed)
-            let currentPairKey = "\(self.effectiveSourceLanguage.id)_\(self.effectiveTargetLanguage.id)"
+            let currentPairKey = "\(self.currentProvider.rawValue)_\(self.effectiveSourceLanguage.id)_\(self.effectiveTargetLanguage.id)"
             
             self.lastTranslatedPairKey = currentPairKey
             self.hasSubmitted = true
@@ -284,7 +294,7 @@ final class TranslationService: ObservableObject {
         // Check credentials if required
         if provider.requiresConfig && !provider.isConfigured {
             self.isTranslating = false
-            self.errorMessage = "请先在 ⚙ 设置 中配置「\(provider.title)」的 API 密钥"
+            self.errorMessage = LocalizationManager.shared.t("service_not_configured_prompt", provider.title)
             return
         }
         
@@ -409,19 +419,18 @@ final class TranslationService: ObservableObject {
         let needConfigUpdate = (configuration?.source != pair.source) ||
                                (configuration?.target != pair.target)
         
-        if needConfigUpdate {
-            activeSession = nil
-            configuration = TranslationSession.Configuration(
-                source: pair.source,
-                target: pair.target
-            )
-            return
-        }
-        
-        if let session = activeSession {
+        if !needConfigUpdate, let session = activeSession {
             await performTranslation(text: text, with: session)
         } else {
-            configuration?.invalidate()
+            activeSession = nil
+            if configuration != nil && !needConfigUpdate {
+                configuration?.invalidate()
+            } else {
+                configuration = TranslationSession.Configuration(
+                    source: pair.source,
+                    target: pair.target
+                )
+            }
         }
     }
     

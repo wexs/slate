@@ -314,17 +314,27 @@ struct ContentView: View {
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     // Full-width Translated Text
-                    Text(service.translatedText.isEmpty ? "" : service.translatedText)
-                        .font(.system(size: 17, weight: .regular))
-                        .foregroundColor(primaryTextColor)
-                        .lineLimit(nil)
-                        .lineSpacing(4)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            copyTranslation()
+                    ZStack(alignment: .topTrailing) {
+                        Text(service.translatedText.isEmpty ? "" : service.translatedText)
+                            .font(.system(size: 17, weight: .regular))
+                            .foregroundColor(primaryTextColor)
+                            .opacity(service.isTranslating ? 0.45 : 1.0)
+                            .animation(.easeInOut(duration: 0.15), value: service.isTranslating)
+                            .lineLimit(nil)
+                            .lineSpacing(4)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                copyTranslation()
+                            }
+                        
+                        if service.isTranslating && !service.translatedText.isEmpty {
+                            ProgressView()
+                                .scaleEffect(0.6)
+                                .frame(width: 18, height: 18)
                         }
+                    }
                     
                     // Action Bar below translated text: Speaker & Copy
                     if !service.translatedText.isEmpty {
@@ -705,6 +715,9 @@ struct ContentView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 isInputFocused = true
             }
+        }
+        .onDisappear {
+            service.invalidateActiveSession()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ResetTranslationInputFocus"))) { _ in
             isInputFocused = false
