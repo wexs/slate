@@ -112,6 +112,8 @@ public struct SettingsView: View {
     @State private var msTestSuccess: Bool? = nil
     @State private var msTestMessage: String = ""
     @State private var showMsSavedAlert: Bool = false
+    @State private var showVoiceSettingsSheet: Bool = false
+    @State private var voiceSheetProvider: SpeechProvider = .system
     
     @AppStorage("app_translation_provider") private var selectedProvider: String = TranslationProvider.system.rawValue
     @AppStorage("app_clear_content_on_open") private var clearContentOnOpen: Bool = true
@@ -167,6 +169,9 @@ public struct SettingsView: View {
         }
         .frame(width: 780, height: 550)
         .background(Color(NSColor.windowBackgroundColor))
+        .sheet(isPresented: $showVoiceSettingsSheet) {
+            VoiceSettingsSheetView(provider: voiceSheetProvider)
+        }
         .onAppear {
             // Ensure translationService reflects the stored default provider if needed
             if let savedTrans = UserDefaults.standard.string(forKey: "app_translation_provider"),
@@ -1477,119 +1482,45 @@ public struct SettingsView: View {
     // MARK: - Apple 原生语音配置与试听
     @ViewBuilder
     private var systemSpeechEditor: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("系统原生神经离线语音")
-                    .font(.system(size: 13, weight: .semibold))
-                
-                Text("完全基于 macOS 系统内置的 AVSpeechSynthesizer 神经音频引擎，支持离线发音，零延迟、零网络流量消耗，并保护您的个人隐私。")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+        VStack(spacing: 0) {
+            Divider()
             
-            // 特性说明卡片
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: "bolt.shield.fill")
-                        .foregroundColor(.blue)
-                        .font(.system(size: 14))
-                        .frame(width: 18)
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("离线安全与隐私保障")
-                            .font(.system(size: 12, weight: .medium))
-                        Text("发音在您的 Mac 本地直接合成，不上传任何文字至云端服务器。")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                    }
-                }
+            HStack {
+                Text("语速")
+                    .font(.system(size: 13))
                 
-                HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: "speaker.wave.2.bubble.left.fill")
-                        .foregroundColor(.green)
-                        .font(.system(size: 14))
-                        .frame(width: 18)
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("多语言智能匹配")
-                            .font(.system(size: 12, weight: .medium))
-                        Text("根据目标翻译文本语言（中文普通话、英语、日语、法语等）自动匹配系统对应的最佳本地发音人声。")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                    }
-                }
+                Spacer()
                 
-                HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: "arrow.down.circle.fill")
-                        .foregroundColor(.indigo)
-                        .font(.system(size: 14))
-                        .frame(width: 18)
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("下载更多高保真声音")
-                            .font(.system(size: 12, weight: .medium))
-                        Text("可在「系统设置 > 辅助功能 > 朗读内容 > 系统声音」中免费下载更多 Apple 增强型与自然发音（如「婷婷」、「冠龙」增强版）。")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
+                Picker("", selection: Binding(
+                    get: { speechManager.speechRate },
+                    set: { speechManager.setRate($0) }
+                )) {
+                    ForEach(SpeedRateOption.options) { opt in
+                        Text(opt.label).tag(opt.rate)
                     }
                 }
+                .pickerStyle(.menu)
+                .frame(width: 85)
             }
-            .padding(14)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Color(NSColor.textBackgroundColor)))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.15), lineWidth: 1))
+            .padding(.vertical, 8)
             
             Divider()
             
-            // 试听按钮区
-            VStack(alignment: .leading, spacing: 10) {
-                Text("发音测试")
-                    .font(.system(size: 13, weight: .semibold))
+            HStack {
+                Text("选择声音")
+                    .font(.system(size: 13))
                 
-                HStack(spacing: 12) {
-                    Button {
-                        speechManager.speak(text: "你好，这是 Apple 原生语音合成测试。", languageCode: "zh-CN")
-                    } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: "speaker.wave.2")
-                            Text("试听中文原生语音")
-                        }
-                    }
-                    .controlSize(.regular)
-                    
-                    Button {
-                        speechManager.speak(text: "Hello, this is Apple native speech synthesis test.", languageCode: "en-US")
-                    } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: "speaker.wave.2")
-                            Text("试听英文原生语音")
-                        }
-                    }
-                    .controlSize(.regular)
-                    
-                    if speechManager.isSpeaking {
-                        Button {
-                            speechManager.stop()
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "stop.fill")
-                                Text("停止播放")
-                            }
-                            .foregroundColor(.red)
-                        }
-                    }
-                    
-                    Spacer()
-                    
-                    Button("打开系统声音设置 ↗") {
-                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.speech") {
-                            NSWorkspace.shared.open(url)
-                        }
-                    }
-                    .buttonStyle(.link)
-                    .font(.system(size: 12))
+                Spacer()
+                
+                Button("设置声音") {
+                    voiceSheetProvider = .system
+                    showVoiceSettingsSheet = true
                 }
+                .controlSize(.regular)
             }
+            .padding(.vertical, 8)
+            
+            Divider()
         }
     }
     
@@ -1597,10 +1528,6 @@ public struct SettingsView: View {
     @ViewBuilder
     private var microsoftSpeechEditor: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("配置 Microsoft Azure Cognitive Services Speech API，享受业内顶级拟真人声合成。")
-                .font(.system(size: 12))
-                .foregroundColor(.secondary)
-            
             // Subscription Key
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
@@ -1682,12 +1609,12 @@ public struct SettingsView: View {
                             ProgressView()
                                 .controlSize(.small)
                         }
-                        Text(isMsTesting ? "正在测试..." : "测试连接与试听")
+                        Text(isMsTesting ? "正在测试..." : "测试连接")
                     }
                 }
                 .disabled(inputMsKey.isEmpty || inputMsRegion.isEmpty || isMsTesting)
                 
-                Button("保存语音配置") {
+                Button("保存配置") {
                     saveMicrosoftSpeechKeys()
                 }
                 .buttonStyle(.borderedProminent)
@@ -1721,6 +1648,49 @@ public struct SettingsView: View {
                 }
                 .padding(.top, 4)
             }
+            
+            // 语速与声音设置行（统一简洁样式）
+            VStack(spacing: 0) {
+                Divider()
+                
+                HStack {
+                    Text("语速")
+                        .font(.system(size: 13))
+                    
+                    Spacer()
+                    
+                    Picker("", selection: Binding(
+                        get: { speechManager.speechRate },
+                        set: { speechManager.setRate($0) }
+                    )) {
+                        ForEach(SpeedRateOption.options) { opt in
+                            Text(opt.label).tag(opt.rate)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(width: 85)
+                }
+                .padding(.vertical, 8)
+                
+                Divider()
+                
+                HStack {
+                    Text("选择声音")
+                        .font(.system(size: 13))
+                    
+                    Spacer()
+                    
+                    Button("设置声音") {
+                        voiceSheetProvider = .microsoft
+                        showVoiceSettingsSheet = true
+                    }
+                    .controlSize(.regular)
+                }
+                .padding(.vertical, 8)
+                
+                Divider()
+            }
+            .padding(.top, 4)
         }
     }
     
@@ -1997,7 +1967,7 @@ public struct SettingsView: View {
         
         Task {
             do {
-                let audioData = try await MicrosoftSpeechSynthesizer.testConnection(apiKey: key, region: region)
+                let audioData = try await MicrosoftSpeechSynthesizer.testConnection(apiKey: key, region: region, rate: speechManager.speechRate)
                 await MainActor.run {
                     self.isMsTesting = false
                     self.msTestSuccess = true
@@ -2028,6 +1998,134 @@ public struct SettingsView: View {
             withAnimation {
                 showMsSavedAlert = false
             }
+        }
+    }
+}
+
+// MARK: - 声音选择弹窗 (精选 10 种常用语言，支持多语种人声设置与试听)
+public struct VoiceSettingsSheetView: View {
+    let provider: SpeechProvider
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var speechManager = SpeechManager.shared
+    @ObservedObject private var msSpeechConfig = MicrosoftSpeechConfig.shared
+    
+    // 预载缓存数据，避免在动画和重绘过程中重复调用系统 IPC 引起卡顿
+    private let systemVoicesMap: [String: [SystemVoiceOption]]
+    private let msVoicesMap: [String: [MicrosoftVoicePreset]]
+    
+    public init(provider: SpeechProvider) {
+        self.provider = provider
+        var sysMap: [String: [SystemVoiceOption]] = [:]
+        var msMap: [String: [MicrosoftVoicePreset]] = [:]
+        for entry in SpeechLanguageEntry.standardLanguages {
+            sysMap[entry.id] = SpeechManager.shared.availableSystemVoices(for: entry)
+            msMap[entry.id] = MicrosoftSpeechConfig.voicePresets(for: entry.id)
+        }
+        self.systemVoicesMap = sysMap
+        self.msVoicesMap = msMap
+    }
+    
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // 顶栏标题 (匹配 Image 2 左上角标题)
+            Text("选择声音")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(.primary)
+                .padding(.top, 2)
+            
+            // 10 种语言卡片容器 (圆角边框浅底，匹配 Image 2)
+            VStack(spacing: 0) {
+                ForEach(Array(SpeechLanguageEntry.standardLanguages.enumerated()), id: \.element.id) { index, entry in
+                    if index > 0 {
+                        Divider()
+                    }
+                    
+                    languageRow(entry)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 7)
+                }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color(NSColor.controlBackgroundColor).opacity(0.55))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.secondary.opacity(0.15), lineWidth: 0.8)
+            )
+            
+            // 底部 "好" 按钮 (匹配 Image 2 右下角)
+            HStack {
+                Spacer()
+                Button("好") {
+                    speechManager.stop()
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .controlSize(.regular)
+                .frame(minWidth: 68)
+            }
+            .padding(.top, 4)
+        }
+        .padding(20)
+        .frame(width: 520)
+    }
+    
+    @ViewBuilder
+    private func languageRow(_ entry: SpeechLanguageEntry) -> some View {
+        HStack(spacing: 12) {
+            Text(entry.name)
+                .font(.system(size: 13))
+                .frame(width: 75, alignment: .leading)
+            
+            if provider == .system {
+                let voices = systemVoicesMap[entry.id] ?? []
+                let selectedId = speechManager.systemVoiceId(for: entry.id)
+                
+                Picker("", selection: Binding(
+                    get: {
+                        if voices.contains(where: { $0.id == selectedId }) {
+                            return selectedId
+                        }
+                        return voices.first?.id ?? ""
+                    },
+                    set: { newId in
+                        speechManager.setSystemVoiceId(newId, for: entry.id)
+                    }
+                )) {
+                    ForEach(voices) { v in
+                        Text(v.displayName).tag(v.id)
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(maxWidth: .infinity)
+            } else {
+                let msPresets = msVoicesMap[entry.id] ?? []
+                let selectedMs = msSpeechConfig.voice(for: entry.id)
+                
+                Picker("", selection: Binding(
+                    get: {
+                        if msPresets.contains(where: { $0.id == selectedMs }) {
+                            return selectedMs
+                        }
+                        return msPresets.first?.id ?? ""
+                    },
+                    set: { newVoice in
+                        msSpeechConfig.setVoice(newVoice, for: entry.id)
+                    }
+                )) {
+                    ForEach(msPresets) { p in
+                        Text("\(p.name) \(p.locale)").tag(p.id)
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(maxWidth: .infinity)
+            }
+            
+            Button("试听") {
+                speechManager.speak(text: entry.sampleText, languageCode: entry.code)
+            }
+            .controlSize(.regular)
         }
     }
 }
@@ -2109,7 +2207,6 @@ public final class SettingsWindowController: NSObject, NSWindowDelegate, NSToolb
         tb.allowsUserCustomization = false
         tb.autosavesConfiguration = false
         tb.displayMode = .iconAndLabel
-        tb.showsBaselineSeparator = true
         tb.selectedItemIdentifier = NSToolbarItem.Identifier(targetTab.rawValue)
         
         if #available(macOS 13.0, *) {

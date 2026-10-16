@@ -3,6 +3,77 @@ import AVFoundation
 import NaturalLanguage
 import Combine
 
+public struct SystemVoiceOption: Identifiable, Hashable {
+    public let id: String
+    public let name: String
+    public let language: String
+    public let displayName: String
+    public let isEnhanced: Bool
+    
+    public init(id: String, name: String, language: String, displayName: String, isEnhanced: Bool) {
+        self.id = id
+        self.name = name
+        self.language = language
+        self.displayName = displayName
+        self.isEnhanced = isEnhanced
+    }
+}
+
+public struct SpeedRateOption: Identifiable, Hashable {
+    public let rate: Double
+    public let label: String
+    
+    public var id: Double { rate }
+    
+    public init(rate: Double, label: String) {
+        self.rate = rate
+        self.label = label
+    }
+    
+    public static let options: [SpeedRateOption] = [
+        SpeedRateOption(rate: 0.5, label: "0.5 倍"),
+        SpeedRateOption(rate: 0.75, label: "0.75 倍"),
+        SpeedRateOption(rate: 1.0, label: "1 倍"),
+        SpeedRateOption(rate: 1.25, label: "1.25 倍"),
+        SpeedRateOption(rate: 1.5, label: "1.5 倍"),
+        SpeedRateOption(rate: 1.75, label: "1.75 倍"),
+        SpeedRateOption(rate: 2.0, label: "2 倍")
+    ]
+    
+    public static var allOptions: [SpeedRateOption] { options }
+}
+
+public typealias SpeechRateOption = SpeedRateOption
+
+public struct SpeechLanguageEntry: Identifiable, Hashable {
+    public let id: String
+    public let name: String
+    public let code: String
+    public let defaultVoiceName: String
+    public let sampleText: String
+    
+    public init(id: String, name: String, code: String, defaultVoiceName: String, sampleText: String) {
+        self.id = id
+        self.name = name
+        self.code = code
+        self.defaultVoiceName = defaultVoiceName
+        self.sampleText = sampleText
+    }
+    
+    public static let standardLanguages: [SpeechLanguageEntry] = [
+        SpeechLanguageEntry(id: "zh-Hans", name: "中文简体", code: "zh-CN", defaultVoiceName: "婷婷", sampleText: "你好，这是中文语音试听。"),
+        SpeechLanguageEntry(id: "en", name: "英语", code: "en-US", defaultVoiceName: "Samantha", sampleText: "Hello, this is English voice preview."),
+        SpeechLanguageEntry(id: "zh-Hant", name: "中文繁体", code: "zh-TW", defaultVoiceName: "婷婷", sampleText: "您好，這是繁體中文語音試聽。"),
+        SpeechLanguageEntry(id: "ja", name: "日语", code: "ja-JP", defaultVoiceName: "Kyoko", sampleText: "こんにちは、これは日本語の音声プレビューです。"),
+        SpeechLanguageEntry(id: "ko", name: "韩语", code: "ko-KR", defaultVoiceName: "Yuna", sampleText: "안녕하세요, 한국어 음성 미리보기입니다."),
+        SpeechLanguageEntry(id: "fr", name: "法语", code: "fr-FR", defaultVoiceName: "Amélie", sampleText: "Bonjour, ceci est un aperçu vocal en français."),
+        SpeechLanguageEntry(id: "ru", name: "俄语", code: "ru-RU", defaultVoiceName: "Milena", sampleText: "Здравствуйте, это образец русской речи."),
+        SpeechLanguageEntry(id: "de", name: "德语", code: "de-DE", defaultVoiceName: "Anna", sampleText: "Hallo, dies ist eine deutsche Sprachprobe."),
+        SpeechLanguageEntry(id: "es", name: "西班牙语", code: "es-ES", defaultVoiceName: "Mónica", sampleText: "Hola, esta es una prueba de voz en español."),
+        SpeechLanguageEntry(id: "it", name: "意大利语", code: "it-IT", defaultVoiceName: "Alice", sampleText: "Ciao, questa è una prova vocale in italiano.")
+    ]
+}
+
 @MainActor
 public final class SpeechManager: NSObject, ObservableObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegate {
     public static let shared = SpeechManager()
@@ -19,11 +90,232 @@ public final class SpeechManager: NSObject, ObservableObject, AVSpeechSynthesize
         }
     }
     
+    /// Speech playback rate multiplier (0.5x to 2.0x, default 1.0x)
+    @Published public var speechRate: Double {
+        didSet {
+            UserDefaults.standard.set(speechRate, forKey: "app_speech_rate")
+        }
+    }
+    
+    /// Stored voice IDs per language identifier (e.g. ["zh-Hans": "com.apple...", "en": "com.apple..."])
+    @Published public var systemVoices: [String: String] {
+        didSet {
+            UserDefaults.standard.set(systemVoices, forKey: "speech_system_voices_map")
+        }
+    }
+    
+    /// Selected macOS system voice identifier for Chinese (empty string = auto/default)
+    @Published public var systemChineseVoiceId: String {
+        didSet {
+            UserDefaults.standard.set(systemChineseVoiceId, forKey: "speech_system_zh_voice")
+        }
+    }
+    
+    /// Selected macOS system voice identifier for English (empty string = auto/default)
+    @Published public var systemEnglishVoiceId: String {
+        didSet {
+            UserDefaults.standard.set(systemEnglishVoiceId, forKey: "speech_system_en_voice")
+        }
+    }
+    
+    private var cachedAllVoices: [AVSpeechSynthesisVoice]? = nil
+    private var cachedVoicesByLanguage: [String: [SystemVoiceOption]] = [:]
+    
     override private init() {
         let savedProvider = UserDefaults.standard.string(forKey: "app_speech_provider") ?? "system"
         self.currentProvider = SpeechProvider(rawValue: savedProvider) ?? .system
+        
+        let savedRate = UserDefaults.standard.double(forKey: "app_speech_rate")
+        self.speechRate = savedRate > 0.1 ? savedRate : 1.0
+        
+        if let savedMap = UserDefaults.standard.dictionary(forKey: "speech_system_voices_map") as? [String: String] {
+            self.systemVoices = savedMap
+        } else {
+            self.systemVoices = [:]
+        }
+        
+        self.systemChineseVoiceId = UserDefaults.standard.string(forKey: "speech_system_zh_voice") ?? ""
+        self.systemEnglishVoiceId = UserDefaults.standard.string(forKey: "speech_system_en_voice") ?? ""
+        
         super.init()
         systemSynthesizer.delegate = self
+        
+        // Pre-warm the system voice cache in background so settings sheets open and close with zero delay
+        Task.detached(priority: .utility) {
+            let voices = AVSpeechSynthesisVoice.speechVoices()
+            await MainActor.run {
+                SpeechManager.shared.cachedAllVoices = voices
+                for entry in SpeechLanguageEntry.standardLanguages {
+                    _ = SpeechManager.shared.availableSystemVoices(for: entry)
+                }
+            }
+        }
+    }
+    
+    public func allSystemVoices() -> [AVSpeechSynthesisVoice] {
+        if let cached = cachedAllVoices {
+            return cached
+        }
+        let voices = AVSpeechSynthesisVoice.speechVoices()
+        self.cachedAllVoices = voices
+        return voices
+    }
+    
+    public func clearVoiceCache() {
+        self.cachedAllVoices = nil
+        self.cachedVoicesByLanguage.removeAll()
+    }
+    
+    public func setRate(_ rate: Double) {
+        self.speechRate = min(max(rate, 0.5), 2.0)
+    }
+    
+    public var currentRateLabel: String {
+        if let match = SpeedRateOption.options.first(where: { abs($0.rate - speechRate) < 0.01 }) {
+            return match.label
+        }
+        return String(format: "%.2f 倍", speechRate)
+    }
+    
+    public func systemVoiceId(for langId: String) -> String {
+        if let custom = systemVoices[langId], !custom.isEmpty {
+            return custom
+        }
+        if langId == "zh-Hans" && !systemChineseVoiceId.isEmpty { return systemChineseVoiceId }
+        if langId == "en" && !systemEnglishVoiceId.isEmpty { return systemEnglishVoiceId }
+        
+        if let langEntry = SpeechLanguageEntry.standardLanguages.first(where: { $0.id == langId }) {
+            let available = availableSystemVoices(for: langEntry)
+            if let matched = available.first(where: { $0.name.localizedCaseInsensitiveContains(langEntry.defaultVoiceName) }) {
+                return matched.id
+            }
+            if let first = available.first {
+                return first.id
+            }
+        }
+        return ""
+    }
+    
+    public func setSystemVoiceId(_ voiceId: String, for langId: String) {
+        systemVoices[langId] = voiceId
+        if langId == "zh-Hans" { systemChineseVoiceId = voiceId }
+        if langId == "en" { systemEnglishVoiceId = voiceId }
+    }
+    
+    public func availableSystemVoices(for langEntry: SpeechLanguageEntry) -> [SystemVoiceOption] {
+        if let cached = cachedVoicesByLanguage[langEntry.id] {
+            return cached
+        }
+        
+        let all = allSystemVoices()
+        let codePrefix = langEntry.id.contains("-") ? String(langEntry.id.split(separator: "-").first!) : langEntry.id
+        
+        var matches = all.filter { v in
+            let vLang = v.language.replacingOccurrences(of: "_", with: "-").lowercased()
+            if langEntry.id == "zh-Hans" {
+                return vLang.hasPrefix("zh") && (vLang.contains("cn") || vLang.contains("hans") || (!vLang.contains("tw") && !vLang.contains("hk")))
+            } else if langEntry.id == "zh-Hant" {
+                return vLang.hasPrefix("zh") && (vLang.contains("tw") || vLang.contains("hk") || vLang.contains("hant"))
+            } else {
+                return vLang.hasPrefix(codePrefix.lowercased())
+            }
+        }
+        
+        // If zh-Hant has no specific TW/HK voices installed, include all Chinese voices as fallback (matching Image 2 where zh-Hant displays 婷婷 zh-CN)
+        if matches.isEmpty && langEntry.id == "zh-Hant" {
+            matches = all.filter { $0.language.replacingOccurrences(of: "_", with: "-").lowercased().hasPrefix("zh") }
+        }
+        
+        if matches.isEmpty {
+            let cleanCode = langEntry.code.replacingOccurrences(of: "_", with: "-")
+            let fallback = [SystemVoiceOption(
+                id: "\(langEntry.code)-default",
+                name: langEntry.defaultVoiceName,
+                language: cleanCode,
+                displayName: "\(langEntry.defaultVoiceName) \(cleanCode)",
+                isEnhanced: false
+            )]
+            cachedVoicesByLanguage[langEntry.id] = fallback
+            return fallback
+        }
+        
+        var seen = Set<String>()
+        var options: [SystemVoiceOption] = []
+        for v in matches {
+            if seen.contains(v.identifier) { continue }
+            seen.insert(v.identifier)
+            let cleanLang = v.language.replacingOccurrences(of: "_", with: "-")
+            options.append(SystemVoiceOption(
+                id: v.identifier,
+                name: v.name,
+                language: cleanLang,
+                displayName: "\(v.name) \(cleanLang)",
+                isEnhanced: v.quality == .enhanced || v.quality == .premium
+            ))
+        }
+        
+        let sorted = options.sorted {
+            let nameA = $0.name.lowercased()
+            let nameB = $1.name.lowercased()
+            let pref = langEntry.defaultVoiceName.lowercased()
+            let aIsPref = nameA.contains(pref)
+            let bIsPref = nameB.contains(pref)
+            if aIsPref != bIsPref { return aIsPref }
+            return $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending
+        }
+        
+        cachedVoicesByLanguage[langEntry.id] = sorted
+        return sorted
+    }
+    
+    public func availableSystemVoices(for prefix: String) -> [SystemVoiceOption] {
+        let all = allSystemVoices()
+        let filtered = all.filter { voice in
+            let code = voice.language.replacingOccurrences(of: "_", with: "-").lowercased()
+            return code.hasPrefix(prefix.lowercased())
+        }
+        
+        var seen = Set<String>()
+        var result: [SystemVoiceOption] = []
+        for v in filtered {
+            if seen.contains(v.identifier) { continue }
+            seen.insert(v.identifier)
+            
+            let isEnhanced = v.quality == .enhanced || v.quality == .premium
+            var display = v.name
+            if v.quality == .enhanced {
+                display += " (增强版)"
+            } else if v.quality == .premium {
+                display += " (高级版)"
+            }
+            
+            let langLower = v.language.replacingOccurrences(of: "_", with: "-").lowercased()
+            if langLower == "zh-hk" {
+                display += " · 粤语"
+            } else if langLower == "zh-tw" {
+                display += " · 台湾"
+            } else if langLower == "en-gb" {
+                display += " · 英音"
+            } else if langLower == "en-au" {
+                display += " · 澳音"
+            } else if langLower == "en-in" {
+                display += " · 印音"
+            }
+            
+            result.append(SystemVoiceOption(
+                id: v.identifier,
+                name: v.name,
+                language: v.language,
+                displayName: display,
+                isEnhanced: isEnhanced
+            ))
+        }
+        
+        return result.sorted {
+            if $0.isEnhanced && !$1.isEnhanced { return true }
+            if !$0.isEnhanced && $1.isEnhanced { return false }
+            return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+        }
     }
     
     public func setProvider(_ provider: SpeechProvider) {
@@ -73,6 +365,7 @@ public final class SpeechManager: NSObject, ObservableObject, AVSpeechSynthesize
                 let audioData = try await MicrosoftSpeechSynthesizer.synthesize(
                     text: text,
                     languageCode: languageCode,
+                    rate: self.speechRate,
                     apiKey: apiKey,
                     region: region
                 )
@@ -109,7 +402,9 @@ public final class SpeechManager: NSObject, ObservableObject, AVSpeechSynthesize
                               AVSpeechSynthesisVoice(language: "zh-CN")
         }
         
-        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+        let baseRate = AVSpeechUtteranceDefaultSpeechRate
+        let calculatedRate = Float(speechRate) * baseRate
+        utterance.rate = min(max(calculatedRate, AVSpeechUtteranceMinimumSpeechRate), AVSpeechUtteranceMaximumSpeechRate)
         utterance.volume = 1.0
         
         self.speakingText = text
@@ -209,7 +504,32 @@ public final class SpeechManager: NSObject, ObservableObject, AVSpeechSynthesize
         }
         
         let normalized = code.replacingOccurrences(of: "_", with: "-").lowercased()
-        let allVoices = AVSpeechSynthesisVoice.speechVoices()
+        let allVoices = allSystemVoices()
+        
+        // 0. User custom voice selection for all supported languages
+        let matchedEntry = SpeechLanguageEntry.standardLanguages.first { entry in
+            let entryCode = entry.code.lowercased()
+            let entryId = entry.id.lowercased()
+            return normalized == entryCode || normalized == entryId ||
+                   normalized.hasPrefix(entryId + "-") ||
+                   (entryId == "zh-hans" && (normalized == "zh" || normalized == "zh-cn")) ||
+                   (entryId == "zh-hant" && (normalized == "zh-tw" || normalized == "zh-hk")) ||
+                   (entryId == "en" && (normalized.hasPrefix("en-") || normalized == "en")) ||
+                   (entryId == "ja" && (normalized.hasPrefix("ja-") || normalized == "ja")) ||
+                   (entryId == "ko" && (normalized.hasPrefix("ko-") || normalized == "ko")) ||
+                   (entryId == "fr" && (normalized.hasPrefix("fr-") || normalized == "fr")) ||
+                   (entryId == "ru" && (normalized.hasPrefix("ru-") || normalized == "ru")) ||
+                   (entryId == "de" && (normalized.hasPrefix("de-") || normalized == "de")) ||
+                   (entryId == "es" && (normalized.hasPrefix("es-") || normalized == "es")) ||
+                   (entryId == "it" && (normalized.hasPrefix("it-") || normalized == "it"))
+        }
+        
+        if let entry = matchedEntry {
+            let selectedVoiceId = systemVoiceId(for: entry.id)
+            if !selectedVoiceId.isEmpty, let customVoice = allVoices.first(where: { $0.identifier == selectedVoiceId }) {
+                return customVoice
+            }
+        }
         
         // 1. Special prioritization for Chinese voices
         if normalized.hasPrefix("zh") {

@@ -59,6 +59,20 @@ public enum SpeechProvider: String, CaseIterable, Identifiable {
     }
 }
 
+public struct MicrosoftVoicePreset: Identifiable, Hashable {
+    public let id: String
+    public let name: String
+    public let desc: String
+    public let locale: String
+    
+    public init(id: String, name: String, desc: String, locale: String) {
+        self.id = id
+        self.name = name
+        self.desc = desc
+        self.locale = locale
+    }
+}
+
 @MainActor
 public final class MicrosoftSpeechConfig: ObservableObject {
     public static let shared = MicrosoftSpeechConfig()
@@ -72,6 +86,24 @@ public final class MicrosoftSpeechConfig: ObservableObject {
     @Published public var region: String {
         didSet {
             UserDefaults.standard.set(region, forKey: "ms_speech_region")
+        }
+    }
+    
+    @Published public var msVoices: [String: String] {
+        didSet {
+            UserDefaults.standard.set(msVoices, forKey: "ms_speech_voices_map")
+        }
+    }
+    
+    @Published public var chineseVoice: String {
+        didSet {
+            UserDefaults.standard.set(chineseVoice, forKey: "ms_speech_zh_voice")
+        }
+    }
+    
+    @Published public var englishVoice: String {
+        didSet {
+            UserDefaults.standard.set(englishVoice, forKey: "ms_speech_en_voice")
         }
     }
     
@@ -92,9 +124,119 @@ public final class MicrosoftSpeechConfig: ObservableObject {
         ("centralus", "美国中部 (爱荷华 - centralus)")
     ]
     
+    public static func voicePresets(for langId: String) -> [MicrosoftVoicePreset] {
+        switch langId {
+        case "zh-Hans":
+            return [
+                MicrosoftVoicePreset(id: "zh-CN-XiaoxiaoNeural", name: "晓晓", desc: "女声 · 温暖亲切 · 推荐", locale: "zh-CN"),
+                MicrosoftVoicePreset(id: "zh-CN-YunxiNeural", name: "云希", desc: "男声 · 阳光自然 · 推荐", locale: "zh-CN"),
+                MicrosoftVoicePreset(id: "zh-CN-YunjianNeural", name: "云健", desc: "男声 · 影视解说 · 沉稳", locale: "zh-CN"),
+                MicrosoftVoicePreset(id: "zh-CN-XiaoyiNeural", name: "晓伊", desc: "女声 · 温柔甜美", locale: "zh-CN"),
+                MicrosoftVoicePreset(id: "zh-CN-YunyangNeural", name: "云扬", desc: "男声 · 专业播音", locale: "zh-CN"),
+                MicrosoftVoicePreset(id: "zh-CN-liaoning-XiaobeiNeural", name: "晓北", desc: "女声 · 东北话特色", locale: "zh-CN")
+            ]
+        case "en":
+            return [
+                MicrosoftVoicePreset(id: "en-US-JennyNeural", name: "Jenny", desc: "美音女声 · 自然亲切 · 推荐", locale: "en-US"),
+                MicrosoftVoicePreset(id: "en-US-GuyNeural", name: "Guy", desc: "美音男声 · 沉稳自信 · 推荐", locale: "en-US"),
+                MicrosoftVoicePreset(id: "en-US-AriaNeural", name: "Aria", desc: "美音女声 · 专业新闻", locale: "en-US"),
+                MicrosoftVoicePreset(id: "en-GB-SoniaNeural", name: "Sonia", desc: "英音女声 · 优雅纯正", locale: "en-GB"),
+                MicrosoftVoicePreset(id: "en-AU-NatashaNeural", name: "Natasha", desc: "澳音女声 · 清新自然", locale: "en-AU")
+            ]
+        case "zh-Hant":
+            return [
+                MicrosoftVoicePreset(id: "zh-TW-HsiaoChenNeural", name: "曉臻", desc: "女聲 · 台灣國語", locale: "zh-TW"),
+                MicrosoftVoicePreset(id: "zh-TW-YunJheNeural", name: "雲哲", desc: "男聲 · 台灣國語", locale: "zh-TW"),
+                MicrosoftVoicePreset(id: "zh-HK-HiuMaanNeural", name: "曉曼", desc: "女聲 · 粵語", locale: "zh-HK"),
+                MicrosoftVoicePreset(id: "zh-HK-WanLungNeural", name: "雲龍", desc: "男聲 · 粵語", locale: "zh-HK")
+            ]
+        case "ja":
+            return [
+                MicrosoftVoicePreset(id: "ja-JP-NanamiNeural", name: "七海 (Nanami)", desc: "日本語 · 女性", locale: "ja-JP"),
+                MicrosoftVoicePreset(id: "ja-JP-KeitaNeural", name: "圭太 (Keita)", desc: "日本語 · 男性", locale: "ja-JP"),
+                MicrosoftVoicePreset(id: "ja-JP-AoiNeural", name: "葵 (Aoi)", desc: "日本語 · 女性", locale: "ja-JP")
+            ]
+        case "ko":
+            return [
+                MicrosoftVoicePreset(id: "ko-KR-SunHiNeural", name: "선희 (SunHi)", desc: "한국어 · 여성", locale: "ko-KR"),
+                MicrosoftVoicePreset(id: "ko-KR-InJoonNeural", name: "인준 (InJoon)", desc: "한국어 · 남성", locale: "ko-KR"),
+                MicrosoftVoicePreset(id: "ko-KR-BongJinNeural", name: "봉진 (BongJin)", desc: "한국어 · 남성", locale: "ko-KR")
+            ]
+        case "fr":
+            return [
+                MicrosoftVoicePreset(id: "fr-FR-DeniseNeural", name: "Denise", desc: "Français · Femme", locale: "fr-FR"),
+                MicrosoftVoicePreset(id: "fr-FR-HenriNeural", name: "Henri", desc: "Français · Homme", locale: "fr-FR"),
+                MicrosoftVoicePreset(id: "fr-CA-SylvieNeural", name: "Sylvie", desc: "Français · Canada", locale: "fr-CA")
+            ]
+        case "ru":
+            return [
+                MicrosoftVoicePreset(id: "ru-RU-SvetlanaNeural", name: "Светлана (Svetlana)", desc: "Русский · Женский", locale: "ru-RU"),
+                MicrosoftVoicePreset(id: "ru-RU-DmitryNeural", name: "Дмитрий (Dmitry)", desc: "Русский · Мужской", locale: "ru-RU")
+            ]
+        case "de":
+            return [
+                MicrosoftVoicePreset(id: "de-DE-KatjaNeural", name: "Katja", desc: "Deutsch · Weiblich", locale: "de-DE"),
+                MicrosoftVoicePreset(id: "de-DE-ConradNeural", name: "Conrad", desc: "Deutsch · Männlich", locale: "de-DE"),
+                MicrosoftVoicePreset(id: "de-DE-AmalaNeural", name: "Amala", desc: "Deutsch · Weiblich", locale: "de-DE")
+            ]
+        case "es":
+            return [
+                MicrosoftVoicePreset(id: "es-ES-ElviraNeural", name: "Elvira", desc: "Español · Femenino", locale: "es-ES"),
+                MicrosoftVoicePreset(id: "es-ES-AlvaroNeural", name: "Álvaro", desc: "Español · Masculino", locale: "es-ES")
+            ]
+        case "it":
+            return [
+                MicrosoftVoicePreset(id: "it-IT-ElsaNeural", name: "Elsa", desc: "Italiano · Femminile", locale: "it-IT"),
+                MicrosoftVoicePreset(id: "it-IT-IsabellaNeural", name: "Isabella", desc: "Italiano · Femminile", locale: "it-IT"),
+                MicrosoftVoicePreset(id: "it-IT-DiegoNeural", name: "Diego", desc: "Italiano · Maschile", locale: "it-IT")
+            ]
+        default:
+            return []
+        }
+    }
+    
+    public static var chineseVoicePresets: [MicrosoftVoicePreset] { voicePresets(for: "zh-Hans") }
+    public static var englishVoicePresets: [MicrosoftVoicePreset] { voicePresets(for: "en") }
+    
     private init() {
         self.apiKey = UserDefaults.standard.string(forKey: "ms_speech_api_key") ?? ""
         self.region = UserDefaults.standard.string(forKey: "ms_speech_region") ?? "eastasia"
+        if let savedMap = UserDefaults.standard.dictionary(forKey: "ms_speech_voices_map") as? [String: String] {
+            self.msVoices = savedMap
+        } else {
+            self.msVoices = [:]
+        }
+        self.chineseVoice = UserDefaults.standard.string(forKey: "ms_speech_zh_voice") ?? "zh-CN-XiaoxiaoNeural"
+        self.englishVoice = UserDefaults.standard.string(forKey: "ms_speech_en_voice") ?? "en-US-JennyNeural"
+    }
+    
+    public static func defaultVoice(for langId: String) -> String {
+        if let map = UserDefaults.standard.dictionary(forKey: "ms_speech_voices_map") as? [String: String],
+           let custom = map[langId], !custom.isEmpty {
+            return custom
+        }
+        if langId == "zh-Hans", let zh = UserDefaults.standard.string(forKey: "ms_speech_zh_voice"), !zh.isEmpty {
+            return zh
+        }
+        if langId == "en", let en = UserDefaults.standard.string(forKey: "ms_speech_en_voice"), !en.isEmpty {
+            return en
+        }
+        return voicePresets(for: langId).first?.id ?? "zh-CN-XiaoxiaoNeural"
+    }
+    
+    public func voice(for langId: String) -> String {
+        if let custom = msVoices[langId], !custom.isEmpty {
+            return custom
+        }
+        if langId == "zh-Hans" && !chineseVoice.isEmpty { return chineseVoice }
+        if langId == "en" && !englishVoice.isEmpty { return englishVoice }
+        return Self.defaultVoice(for: langId)
+    }
+    
+    public func setVoice(_ voiceName: String, for langId: String) {
+        msVoices[langId] = voiceName
+        if langId == "zh-Hans" { chineseVoice = voiceName }
+        if langId == "en" { englishVoice = voiceName }
     }
     
     public func save(apiKey: String, region: String) {
@@ -157,29 +299,41 @@ public struct MicrosoftSpeechSynthesizer {
             code = "ko-kr"
         }
         
+        if code.hasPrefix("zh-tw") || code.hasPrefix("zh-hk") || code == "zh-hant" {
+            let voice = MicrosoftSpeechConfig.defaultVoice(for: "zh-Hant")
+            let xmlLang = voice.contains("zh-HK") ? "zh-HK" : "zh-TW"
+            return (voice, xmlLang)
+        } else if code.hasPrefix("zh") {
+            let voice = MicrosoftSpeechConfig.defaultVoice(for: "zh-Hans")
+            return (voice, "zh-CN")
+        } else if code.hasPrefix("en") {
+            let voice = MicrosoftSpeechConfig.defaultVoice(for: "en")
+            let xmlLang: String
+            if voice.contains("en-GB") { xmlLang = "en-GB" }
+            else if voice.contains("en-AU") { xmlLang = "en-AU" }
+            else { xmlLang = "en-US" }
+            return (voice, xmlLang)
+        }
+        
         switch code {
-        case "zh", "zh-hans", "zh-cn":
-            return ("zh-CN-XiaoxiaoNeural", "zh-CN")
-        case "zh-hant", "zh-tw", "zh-hk":
-            return ("zh-TW-HsiaoChenNeural", "zh-TW")
-        case "en", "en-us", "en-gb":
-            return ("en-US-JennyNeural", "en-US")
         case "ja", "ja-jp":
-            return ("ja-JP-NanamiNeural", "ja-JP")
+            return (MicrosoftSpeechConfig.defaultVoice(for: "ja"), "ja-JP")
         case "ko", "ko-kr":
-            return ("ko-KR-SunHiNeural", "ko-KR")
-        case "fr", "fr-fr":
-            return ("fr-FR-DeniseNeural", "fr-FR")
+            return (MicrosoftSpeechConfig.defaultVoice(for: "ko"), "ko-KR")
+        case "fr", "fr-fr", "fr-ca":
+            let v = MicrosoftSpeechConfig.defaultVoice(for: "fr")
+            let xml = v.contains("fr-CA") ? "fr-CA" : "fr-FR"
+            return (v, xml)
         case "de", "de-de":
-            return ("de-DE-KatjaNeural", "de-DE")
+            return (MicrosoftSpeechConfig.defaultVoice(for: "de"), "de-DE")
         case "es", "es-es":
-            return ("es-ES-ElviraNeural", "es-ES")
+            return (MicrosoftSpeechConfig.defaultVoice(for: "es"), "es-ES")
         case "it", "it-it":
-            return ("it-IT-ElsaNeural", "it-IT")
+            return (MicrosoftSpeechConfig.defaultVoice(for: "it"), "it-IT")
+        case "ru", "ru-ru":
+            return (MicrosoftSpeechConfig.defaultVoice(for: "ru"), "ru-RU")
         case "pt", "pt-br", "pt-pt":
             return ("pt-BR-FranciscaNeural", "pt-BR")
-        case "ru", "ru-ru":
-            return ("ru-RU-SvetlanaNeural", "ru-RU")
         case "ar", "ar-sa":
             return ("ar-SA-ZariyahNeural", "ar-SA")
         case "th", "th-th":
@@ -188,9 +342,9 @@ public struct MicrosoftSpeechSynthesizer {
             return ("vi-VN-HoaiMyNeural", "vi-VN")
         default:
             if hasCJK {
-                return ("zh-CN-XiaoxiaoNeural", "zh-CN")
+                return (MicrosoftSpeechConfig.defaultVoice(for: "zh-Hans"), "zh-CN")
             } else {
-                return ("en-US-JennyNeural", "en-US")
+                return (MicrosoftSpeechConfig.defaultVoice(for: "en"), "en-US")
             }
         }
     }
@@ -199,6 +353,8 @@ public struct MicrosoftSpeechSynthesizer {
     public static func synthesize(
         text: String,
         languageCode: String?,
+        voiceName: String? = nil,
+        rate: Double = 1.0,
         apiKey: String,
         region: String
     ) async throws -> Data {
@@ -213,7 +369,23 @@ public struct MicrosoftSpeechSynthesizer {
             throw SpeechError.invalidEndpoint
         }
         
-        let (voiceName, xmlLang) = resolveVoice(for: languageCode, text: text)
+        let (resolvedVoice, xmlLang): (String, String)
+        if let explicitVoice = voiceName, !explicitVoice.isEmpty {
+            let lang: String
+            if explicitVoice.contains("zh-TW") { lang = "zh-TW" }
+            else if explicitVoice.contains("zh-HK") { lang = "zh-HK" }
+            else if explicitVoice.contains("zh") { lang = "zh-CN" }
+            else if explicitVoice.contains("en-GB") { lang = "en-GB" }
+            else if explicitVoice.contains("en-AU") { lang = "en-AU" }
+            else if explicitVoice.contains("en") { lang = "en-US" }
+            else { lang = "zh-CN" }
+            resolvedVoice = explicitVoice
+            xmlLang = lang
+        } else {
+            let res = resolveVoice(for: languageCode, text: text)
+            resolvedVoice = res.voiceName
+            xmlLang = res.xmlLang
+        }
         
         // XML Escape special characters
         let escapedText = text
@@ -223,9 +395,14 @@ public struct MicrosoftSpeechSynthesizer {
             .replacingOccurrences(of: "\"", with: "&quot;")
             .replacingOccurrences(of: "'", with: "&apos;")
         
+        let ratePercent = Int(round((rate - 1.0) * 100))
+        let rateStr = ratePercent >= 0 ? "+\(ratePercent)%" : "\(ratePercent)%"
+        
         let ssml = """
         <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='\(xmlLang)'>
-            <voice name='\(voiceName)'>\(escapedText)</voice>
+            <voice name='\(resolvedVoice)'>
+                <prosody rate='\(rateStr)'>\(escapedText)</prosody>
+            </voice>
         </speak>
         """
         
@@ -264,10 +441,11 @@ public struct MicrosoftSpeechSynthesizer {
     }
     
     /// Tests connection and audio synthesis
-    public static func testConnection(apiKey: String, region: String) async throws -> Data {
+    public static func testConnection(apiKey: String, region: String, rate: Double = 1.0) async throws -> Data {
         return try await synthesize(
-            text: "您好，这是微软语音合成测试。",
+            text: "您好，这是微软智能语音合成测试。",
             languageCode: "zh-CN",
+            rate: rate,
             apiKey: apiKey,
             region: region
         )

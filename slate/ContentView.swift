@@ -193,17 +193,29 @@ struct ContentView: View {
                     .contextMenu {
                         Text("朗读引擎")
                         Divider()
-                        ForEach(SpeechProvider.allCases) { provider in
+                        ForEach(SpeechProvider.allCases.filter { $0.isConfigured }) { provider in
                             Button {
                                 speechManager.setProvider(provider)
-                                if provider.requiresConfig && !provider.isConfigured {
-                                    SettingsWindowController.shared.showWindow(tab: .speech, speechProvider: provider)
-                                }
                             } label: {
                                 HStack {
-                                    Text(provider.title + (provider.isConfigured ? "" : " (未配置)"))
+                                    Text(provider.title)
                                     if speechManager.currentProvider == provider {
                                         Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                        Divider()
+                        Menu("朗读语速 (\(speechManager.currentRateLabel))") {
+                            ForEach(SpeedRateOption.options) { opt in
+                                Button {
+                                    speechManager.setRate(opt.rate)
+                                } label: {
+                                    HStack {
+                                        Text(opt.label)
+                                        if abs(speechManager.speechRate - opt.rate) < 0.01 {
+                                            Image(systemName: "checkmark")
+                                        }
                                     }
                                 }
                             }
@@ -332,17 +344,29 @@ struct ContentView: View {
                             .contextMenu {
                                 Text("朗读引擎")
                                 Divider()
-                                ForEach(SpeechProvider.allCases) { provider in
+                                ForEach(SpeechProvider.allCases.filter { $0.isConfigured }) { provider in
                                     Button {
                                         speechManager.setProvider(provider)
-                                        if provider.requiresConfig && !provider.isConfigured {
-                                            SettingsWindowController.shared.showWindow(tab: .speech, speechProvider: provider)
-                                        }
                                     } label: {
                                         HStack {
-                                            Text(provider.title + (provider.isConfigured ? "" : " (未配置)"))
+                                            Text(provider.title)
                                             if speechManager.currentProvider == provider {
                                                 Image(systemName: "checkmark")
+                                            }
+                                        }
+                                    }
+                                }
+                                Divider()
+                                Menu("朗读语速 (\(speechManager.currentRateLabel))") {
+                                    ForEach(SpeedRateOption.options) { opt in
+                                        Button {
+                                            speechManager.setRate(opt.rate)
+                                        } label: {
+                                            HStack {
+                                                Text(opt.label)
+                                                if abs(speechManager.speechRate - opt.rate) < 0.01 {
+                                                    Image(systemName: "checkmark")
+                                                }
                                             }
                                         }
                                     }
@@ -454,41 +478,14 @@ struct ContentView: View {
             
             // Provider Picker Capsule
             Menu {
-                Section("开箱即用 · 免配置") {
-                    ForEach([TranslationProvider.system, TranslationProvider.google]) { provider in
-                        Button {
-                            service.setProvider(provider)
-                        } label: {
-                            HStack {
-                                Text(provider.title)
-                                if service.currentProvider == provider {
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                Section("云端服务商 · 需 API 密钥") {
-                    ForEach([
-                        TranslationProvider.deepl,
-                        TranslationProvider.microsoft,
-                        TranslationProvider.baidu,
-                        TranslationProvider.tencent,
-                        TranslationProvider.alibaba,
-                        TranslationProvider.volcengine
-                    ]) { provider in
-                        Button {
-                            service.setProvider(provider)
-                            if provider.requiresConfig && !provider.isConfigured {
-                                SettingsWindowController.shared.showWindow(tab: .translation, provider: provider)
-                            }
-                        } label: {
-                            HStack {
-                                Text(provider.title + (provider.isConfigured ? "" : " (未配置)"))
-                                if service.currentProvider == provider {
-                                    Image(systemName: "checkmark")
-                                }
+                ForEach(TranslationProvider.allCases.filter { $0.isConfigured }) { provider in
+                    Button {
+                        service.setProvider(provider)
+                    } label: {
+                        HStack {
+                            Text(provider.title)
+                            if service.currentProvider == provider {
+                                Image(systemName: "checkmark")
                             }
                         }
                     }
@@ -524,27 +521,6 @@ struct ContentView: View {
             
             // Right Settings Button (⚙)
             Menu {
-                Button {
-                    copyTranslation()
-                } label: {
-                    Label("复制译文 (Return)", systemImage: "doc.on.doc")
-                }
-                .disabled(service.translatedText.isEmpty)
-                
-                Divider()
-                
-                Button {
-                    ScreenshotOCRManager.shared.performScreenshotOCR()
-                } label: {
-                    Label("截图 OCR 翻译 (\(hotKeyManager.currentOcrShortcut.displaySymbol))", systemImage: "viewfinder")
-                }
-                
-                Button {
-                    SelectionTranslationManager.shared.performSelectionTranslation()
-                } label: {
-                    Label("选中文本翻译 (\(hotKeyManager.currentSelectionShortcut.displaySymbol))", systemImage: "text.cursor")
-                }
-                
                 Button {
                     SettingsWindowController.shared.showWindow(tab: .general)
                 } label: {
@@ -733,25 +709,29 @@ struct ContentView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ClearTranslationContent"))) { _ in
-            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                service.clearContent()
-            }
-            isInputFocused = false
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                isInputFocused = true
+            DispatchQueue.main.async {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                    service.clearContent()
+                }
+                isInputFocused = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    isInputFocused = true
+                }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SetTranslationInputAndTranslate"))) { notification in
             if let userInfo = notification.userInfo,
                let text = userInfo["text"] as? String {
-                service.inputText = text
-                let autoTranslate = (userInfo["autoTranslate"] as? Bool) ?? true
-                if autoTranslate {
-                    service.submitTranslation()
-                }
-                isInputFocused = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                    isInputFocused = true
+                DispatchQueue.main.async {
+                    service.inputText = text
+                    let autoTranslate = (userInfo["autoTranslate"] as? Bool) ?? true
+                    if autoTranslate {
+                        service.submitTranslation()
+                    }
+                    isInputFocused = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        isInputFocused = true
+                    }
                 }
             }
         }

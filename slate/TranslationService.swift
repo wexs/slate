@@ -23,7 +23,7 @@ final class TranslationService: ObservableObject {
     
     @Published var sourceLanguage: AppLanguage = .auto
     @Published var targetLanguage: AppLanguage = .autoSelect
-    @Published var detectedSourceLanguage: AppLanguage? = nil
+    private var detectedSourceLanguage: AppLanguage? = nil
     private var lastTranslatedPairKey: String = ""
     
     @Published var primaryLanguage: AppLanguage {
@@ -102,7 +102,7 @@ final class TranslationService: ObservableObject {
         self.sourceLanguage = .auto
         self.targetLanguage = .autoSelect
         
-        setupConfiguration()
+        setupConfiguration(immediate: true)
     }
     
     func setProvider(_ provider: TranslationProvider) {
@@ -110,12 +110,26 @@ final class TranslationService: ObservableObject {
         currentProvider = provider
     }
     
-    func setupConfiguration() {
+    func setupConfiguration(immediate: Bool = false) {
         let pair = resolveLanguagePair(for: inputText)
-        self.configuration = TranslationSession.Configuration(
+        if let config = self.configuration,
+           config.source == pair.source,
+           config.target == pair.target {
+            return
+        }
+        
+        let newConfig = TranslationSession.Configuration(
             source: pair.source,
             target: pair.target
         )
+        
+        if immediate {
+            self.configuration = newConfig
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.configuration = newConfig
+            }
+        }
     }
     
     func handleSession(_ session: TranslationSession) async {
@@ -136,10 +150,13 @@ final class TranslationService: ObservableObject {
     
     func onInputChanged(_ newText: String) {
         let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            clearContent()
-        } else {
-            adjustLanguagesIfNeeded(for: trimmed)
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            if trimmed.isEmpty {
+                self.clearContent()
+            } else {
+                self.adjustLanguagesIfNeeded(for: trimmed)
+            }
         }
     }
     
@@ -164,11 +181,17 @@ final class TranslationService: ObservableObject {
     public func adjustLanguagesIfNeeded(for text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            detectedSourceLanguage = nil
+            if detectedSourceLanguage != nil {
+                detectedSourceLanguage = nil
+                if currentProvider == .system {
+                    setupConfiguration()
+                }
+            }
             return
         }
         
         let detected = AppLanguage.detectLanguage(for: trimmed)
+        guard detected != self.detectedSourceLanguage else { return }
         self.detectedSourceLanguage = detected
         
         if currentProvider == .system {
@@ -196,28 +219,37 @@ final class TranslationService: ObservableObject {
         let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         
-        adjustLanguagesIfNeeded(for: trimmed)
-        
         let currentPairKey = "\(effectiveSourceLanguage.id)_\(effectiveTargetLanguage.id)"
         
         // If already translated for the same input and same pair, copy to clipboard
         if hasSubmitted && !translatedText.isEmpty && trimmed == lastTranslatedInput && currentPairKey == lastTranslatedPairKey {
-            onAlreadyTranslatedCopy?()
+            DispatchQueue.main.async {
+                onAlreadyTranslatedCopy?()
+            }
             return
         }
         
-        lastTranslatedPairKey = currentPairKey
-        hasSubmitted = true
-        isTranslating = true
-        errorMessage = nil
-        
-        if currentProvider == .system {
-            Task { [weak self] in
-                guard let self = self else { return }
-                await self.checkConfigurationAndTranslate(for: trimmed)
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let trimmed = self.inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+            
+            self.adjustLanguagesIfNeeded(for: trimmed)
+            let currentPairKey = "\(self.effectiveSourceLanguage.id)_\(self.effectiveTargetLanguage.id)"
+            
+            self.lastTranslatedPairKey = currentPairKey
+            self.hasSubmitted = true
+            self.isTranslating = true
+            self.errorMessage = nil
+            
+            if self.currentProvider == .system {
+                Task { [weak self] in
+                    guard let self = self else { return }
+                    await self.checkConfigurationAndTranslate(for: trimmed)
+                }
+            } else {
+                self.performRemoteTranslation(for: trimmed, provider: self.currentProvider)
             }
-        } else {
-            performRemoteTranslation(for: trimmed, provider: currentProvider)
         }
     }
     

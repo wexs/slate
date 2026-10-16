@@ -19,9 +19,9 @@ public enum MenuBarIconType: String, CaseIterable, Identifiable {
     
     public var symbolName: String {
         switch self {
-        case .default: return "character.bubble"
-        case .cat: return "cat"
-        case .fish: return "fish"
+        case .default: return "translate"
+        case .cat: return "cat.fill"
+        case .fish: return "fish.fill"
         }
     }
 }
