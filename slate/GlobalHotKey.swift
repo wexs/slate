@@ -37,7 +37,7 @@ public struct AppShortcut: Identifiable, Hashable, Equatable {
     
     public static let optSpace = AppShortcut(
         id: "opt_space",
-        name: "⌥Space (Option + 空格)",
+        name: "⌥Space (Option + Space)",
         keyCode: UInt32(kVK_Space),
         modifiers: UInt32(optionKey),
         displaySymbol: "⌥Space"

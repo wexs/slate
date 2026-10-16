@@ -4,7 +4,13 @@ import NaturalLanguage
 
 public struct AppLanguage: Identifiable, Hashable {
     public let id: String
-    public let name: String
+    private let rawName: String
+    public var name: String {
+        if id == "auto" {
+            return rawName == "自动选择" ? loc("lang_auto_select") : loc("lang_auto")
+        }
+        return LocalizationManager.shared.languageName(for: id)
+    }
     public let localeLanguage: Locale.Language?
     
     public var isChinese: Bool {
@@ -13,7 +19,7 @@ public struct AppLanguage: Identifiable, Hashable {
     
     public init(id: String, name: String, localeLanguage: Locale.Language?) {
         self.id = id
-        self.name = name
+        self.rawName = name
         self.localeLanguage = localeLanguage
     }
     
@@ -290,27 +296,7 @@ public struct AppLanguage: Identifiable, Hashable {
         }
     }
     
-    public var tencentCode: String? {
-        switch id {
-        case "auto": return "auto"
-        case "zh-Hans": return "zh"
-        case "zh-Hant": return "zh-TW"
-        case "en": return "en"
-        case "ja": return "ja"
-        case "ko": return "ko"
-        case "fr": return "fr"
-        case "de": return "de"
-        case "es": return "es"
-        case "it": return "it"
-        case "pt": return "pt"
-        case "ru": return "ru"
-        case "ar": return "ar"
-        case "th": return "th"
-        case "vi": return "vi"
-        default: return id
-        }
-    }
-    
+
     public var alibabaCode: String? {
         switch id {
         case "auto": return "auto"
@@ -360,7 +346,6 @@ public enum TranslationProvider: String, CaseIterable, Identifiable {
     case deepl = "deepl"
     case microsoft = "microsoft"
     case baidu = "baidu"
-    case tencent = "tencent"
     case alibaba = "alibaba"
     case volcengine = "volcengine"
     
@@ -368,40 +353,37 @@ public enum TranslationProvider: String, CaseIterable, Identifiable {
     
     public var title: String {
         switch self {
-        case .system: return "Apple 原生翻译"
-        case .google: return "Google 翻译"
-        case .deepl: return "DeepL 翻译"
-        case .microsoft: return "Microsoft 翻译"
-        case .baidu: return "百度翻译"
-        case .tencent: return "腾讯翻译君"
-        case .alibaba: return "阿里翻译"
-        case .volcengine: return "火山翻译"
+        case .system: return loc("provider_system")
+        case .google: return loc("provider_google")
+        case .deepl: return loc("provider_deepl")
+        case .microsoft: return loc("provider_microsoft")
+        case .baidu: return loc("provider_baidu")
+        case .alibaba: return loc("provider_alibaba")
+        case .volcengine: return loc("provider_volcengine")
         }
     }
     
     public var shortName: String {
         switch self {
-        case .system: return "Apple"
-        case .google: return "Google"
-        case .deepl: return "DeepL"
-        case .microsoft: return "微软"
-        case .baidu: return "百度"
-        case .tencent: return "腾讯"
-        case .alibaba: return "阿里"
-        case .volcengine: return "火山"
+        case .system: return loc("provider_short_system")
+        case .google: return loc("provider_short_google")
+        case .deepl: return loc("provider_short_deepl")
+        case .microsoft: return loc("provider_short_microsoft")
+        case .baidu: return loc("provider_short_baidu")
+        case .alibaba: return loc("provider_short_alibaba")
+        case .volcengine: return loc("provider_short_volcengine")
         }
     }
     
     public var subtitle: String {
         switch self {
-        case .system: return "macOS 系统内置 · 离线/神经加速"
-        case .google: return "免配置即用 · 全球多语言覆盖"
-        case .deepl: return "DeepL 引擎 · 自然流畅的高质翻译"
-        case .microsoft: return "Azure 认知服务 · 微软翻译技术"
-        case .baidu: return "百度翻译开放平台 · 老牌引擎"
-        case .tencent: return "腾讯云 TMT · 翻译君智能引擎"
-        case .alibaba: return "阿里云机器翻译 · 达摩院技术加持"
-        case .volcengine: return "火山引擎 · 字节跳动前沿翻译模型"
+        case .system: return loc("provider_system_sub")
+        case .google: return loc("provider_google_sub")
+        case .deepl: return loc("provider_deepl_sub")
+        case .microsoft: return loc("provider_microsoft_sub")
+        case .baidu: return loc("provider_baidu_sub")
+        case .alibaba: return loc("provider_alibaba_sub")
+        case .volcengine: return loc("provider_volcengine_sub")
         }
     }
     
@@ -412,9 +394,20 @@ public enum TranslationProvider: String, CaseIterable, Identifiable {
         case .deepl: return "text.book.closed.fill"
         case .microsoft: return "square.grid.2x2.fill"
         case .baidu: return "pawprint.fill"
-        case .tencent: return "bubble.left.and.bubble.right.fill"
         case .alibaba: return "cube.box.fill"
         case .volcengine: return "flame.fill"
+        }
+    }
+    
+    public var assetImageName: String? {
+        switch self {
+        case .system: return "appletranslate"
+        case .google: return "google"
+        case .deepl: return "deepl"
+        case .microsoft: return "Microsoft"
+        case .baidu: return "baidu"
+        case .alibaba: return "alibaba"
+        case .volcengine: return "huoshan"
         }
     }
     
@@ -425,7 +418,6 @@ public enum TranslationProvider: String, CaseIterable, Identifiable {
         case .deepl: return Color(red: 0.10, green: 0.35, blue: 0.60)
         case .microsoft: return Color(red: 0.0, green: 0.47, blue: 0.83)
         case .baidu: return Color(red: 0.16, green: 0.28, blue: 0.94)
-        case .tencent: return Color(red: 0.0, green: 0.58, blue: 0.78)
         case .alibaba: return Color(red: 1.0, green: 0.42, blue: 0.0)
         case .volcengine: return Color(red: 0.94, green: 0.25, blue: 0.26)
         }
@@ -451,8 +443,6 @@ public enum TranslationProvider: String, CaseIterable, Identifiable {
             return MicrosoftConfig.shared.isConfigured
         case .baidu:
             return BaiduConfig.shared.isConfigured
-        case .tencent:
-            return TencentConfig.shared.isConfigured
         case .alibaba:
             return AlibabaConfig.shared.isConfigured
         case .volcengine:
@@ -460,3 +450,44 @@ public enum TranslationProvider: String, CaseIterable, Identifiable {
         }
     }
 }
+
+public extension Image {
+    static func brandIcon(_ name: String) -> Image {
+        if NSImage(named: name) != nil {
+            return Image(name)
+        }
+        if NSImage(named: "brandicon/\(name)") != nil {
+            return Image("brandicon/\(name)")
+        }
+        return Image(name)
+    }
+}
+
+public struct ProviderIconView: View {
+    let provider: TranslationProvider
+    var size: CGFloat = 16
+    var isSelected: Bool = false
+    
+    public init(provider: TranslationProvider, size: CGFloat = 16, isSelected: Bool = false) {
+        self.provider = provider
+        self.size = size
+        self.isSelected = isSelected
+    }
+    
+    public var body: some View {
+        let cornerRadius = size * 0.25
+        if let asset = provider.assetImageName {
+            Image.brandIcon(asset)
+                .resizable()
+                .scaledToFit()
+                .frame(width: size, height: size)
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        } else {
+            Image(systemName: provider.icon)
+                .font(.system(size: size * 0.8))
+                .foregroundColor(isSelected ? .white : provider.accentColor)
+                .frame(width: size, height: size)
+        }
+    }
+}
+

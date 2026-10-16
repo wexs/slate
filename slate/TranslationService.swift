@@ -76,6 +76,12 @@ final class TranslationService: ObservableObject {
     @Published var currentProvider: TranslationProvider {
         didSet {
             UserDefaults.standard.set(currentProvider.rawValue, forKey: "app_translation_provider")
+            if currentProvider != .system {
+                configuration = nil
+                activeSession = nil
+            } else {
+                setupConfiguration(immediate: true)
+            }
             if hasSubmitted && !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 submitTranslation()
             }
@@ -102,7 +108,9 @@ final class TranslationService: ObservableObject {
         self.sourceLanguage = .auto
         self.targetLanguage = .autoSelect
         
-        setupConfiguration(immediate: true)
+        if self.currentProvider == .system {
+            setupConfiguration(immediate: true)
+        }
     }
     
     func setProvider(_ provider: TranslationProvider) {
@@ -111,6 +119,21 @@ final class TranslationService: ObservableObject {
     }
     
     func setupConfiguration(immediate: Bool = false) {
+        guard currentProvider == .system else {
+            if self.configuration != nil {
+                if immediate {
+                    self.configuration = nil
+                    self.activeSession = nil
+                } else {
+                    DispatchQueue.main.async { [weak self] in
+                        self?.configuration = nil
+                        self?.activeSession = nil
+                    }
+                }
+            }
+            return
+        }
+        
         let pair = resolveLanguagePair(for: inputText)
         if let config = self.configuration,
            config.source == pair.source,
@@ -133,6 +156,7 @@ final class TranslationService: ObservableObject {
     }
     
     func handleSession(_ session: TranslationSession) async {
+        guard currentProvider == .system else { return }
         self.activeSession = session
         try? await session.prepareTranslation()
         
@@ -305,16 +329,6 @@ final class TranslationService: ObservableObject {
                         appId: BaiduConfig.shared.appId,
                         secretKey: BaiduConfig.shared.secretKey
                     )
-                case .tencent:
-                    let pair = self.resolveTencentLanguagePair(for: text)
-                    result = try await TencentTranslator.translate(
-                        text: text,
-                        sourceCode: pair.source,
-                        targetCode: pair.target,
-                        secretId: TencentConfig.shared.secretId,
-                        secretKey: TencentConfig.shared.secretKey,
-                        region: TencentConfig.shared.region
-                    )
                 case .alibaba:
                     let pair = self.resolveAlibabaLanguagePair(for: text)
                     result = try await AlibabaTranslator.translate(
@@ -374,12 +388,7 @@ final class TranslationService: ObservableObject {
         return (sourceCode, targetCode)
     }
     
-    public func resolveTencentLanguagePair(for text: String) -> (source: String, target: String) {
-        let sourceCode = (sourceLanguage.id == "auto" ? "auto" : (sourceLanguage.tencentCode ?? "auto"))
-        let targetCode = effectiveTargetLanguage.tencentCode ?? "zh"
-        return (sourceCode, targetCode)
-    }
-    
+
     public func resolveAlibabaLanguagePair(for text: String) -> (source: String, target: String) {
         let sourceCode = (sourceLanguage.id == "auto" ? "auto" : (sourceLanguage.alibabaCode ?? "auto"))
         let targetCode = effectiveTargetLanguage.alibabaCode ?? "zh"
@@ -394,6 +403,7 @@ final class TranslationService: ObservableObject {
     
     // MARK: - Apple System Translation
     private func checkConfigurationAndTranslate(for text: String) async {
+        guard currentProvider == .system else { return }
         let pair = resolveLanguagePair(for: text)
         
         let needConfigUpdate = (configuration?.source != pair.source) ||

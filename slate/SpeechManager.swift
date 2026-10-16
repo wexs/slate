@@ -47,14 +47,17 @@ public typealias SpeechRateOption = SpeedRateOption
 
 public struct SpeechLanguageEntry: Identifiable, Hashable {
     public let id: String
-    public let name: String
+    private let rawName: String
+    public var name: String {
+        LocalizationManager.shared.languageName(for: id)
+    }
     public let code: String
     public let defaultVoiceName: String
     public let sampleText: String
     
     public init(id: String, name: String, code: String, defaultVoiceName: String, sampleText: String) {
         self.id = id
-        self.name = name
+        self.rawName = name
         self.code = code
         self.defaultVoiceName = defaultVoiceName
         self.sampleText = sampleText
@@ -336,7 +339,7 @@ public final class SpeechManager: NSObject, ObservableObject, AVSpeechSynthesize
         speak(text: trimmed, languageCode: languageCode)
     }
     
-    /// Speaks text using the current speech provider (macOS native or Microsoft Azure)
+    /// Speaks text using the current speech provider (macOS native, Google Speech, or Microsoft Azure)
     public func speak(text: String, languageCode: String? = nil) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -346,12 +349,49 @@ public final class SpeechManager: NSObject, ObservableObject, AVSpeechSynthesize
         
         if currentProvider == .microsoft && MicrosoftSpeechConfig.shared.isConfigured {
             speakWithMicrosoft(text: trimmed, languageCode: languageCode)
+        } else if currentProvider == .google {
+            speakWithGoogle(text: trimmed, languageCode: languageCode)
         } else {
             speakWithSystem(text: trimmed, languageCode: languageCode)
         }
     }
     
-    // MARK: - 1. Microsoft Azure Speech Synthesis
+    // MARK: - 1. Google Speech Synthesis
+    private func speakWithGoogle(text: String, languageCode: String?) {
+        let apiKey = GoogleSpeechConfig.shared.apiKey
+        
+        self.speakingText = text
+        self.isSpeaking = true
+        
+        speechTask = Task { [weak self] in
+            guard let self = self else { return }
+            do {
+                let audioData = try await GoogleSpeechSynthesizer.synthesize(
+                    text: text,
+                    languageCode: languageCode,
+                    rate: self.speechRate,
+                    apiKey: apiKey
+                )
+                
+                guard !Task.isCancelled else { return }
+                
+                let player = try AVAudioPlayer(data: audioData)
+                player.delegate = self
+                player.enableRate = true
+                player.rate = Float(self.speechRate)
+                player.prepareToPlay()
+                self.audioPlayer = player
+                player.play()
+            } catch {
+                guard !Task.isCancelled else { return }
+                print("Google Speech synthesis failed: \(error.localizedDescription), falling back to system speech.")
+                // Fall back to system speech
+                self.speakWithSystem(text: text, languageCode: languageCode)
+            }
+        }
+    }
+    
+    // MARK: - 2. Microsoft Azure Speech Synthesis
     private func speakWithMicrosoft(text: String, languageCode: String?) {
         let apiKey = MicrosoftSpeechConfig.shared.apiKey
         let region = MicrosoftSpeechConfig.shared.region
@@ -374,6 +414,8 @@ public final class SpeechManager: NSObject, ObservableObject, AVSpeechSynthesize
                 
                 let player = try AVAudioPlayer(data: audioData)
                 player.delegate = self
+                player.enableRate = true
+                player.rate = Float(self.speechRate)
                 player.prepareToPlay()
                 self.audioPlayer = player
                 player.play()
@@ -386,7 +428,7 @@ public final class SpeechManager: NSObject, ObservableObject, AVSpeechSynthesize
         }
     }
     
-    // MARK: - 2. macOS Native Speech Synthesis
+    // MARK: - 3. macOS Native Speech Synthesis
     private func speakWithSystem(text: String, languageCode: String?) {
         // Stop any currently ongoing speech immediately
         systemSynthesizer.stopSpeaking(at: .immediate)

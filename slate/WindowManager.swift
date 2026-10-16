@@ -44,8 +44,8 @@ public enum WindowWidthMode: String, CaseIterable, Identifiable {
     
     public var title: String {
         switch self {
-        case .standard: return "默认"
-        case .wide: return "宽"
+        case .standard: return loc("width_standard")
+        case .wide: return loc("width_wide")
         }
     }
     

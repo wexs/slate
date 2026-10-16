@@ -5,6 +5,7 @@ import Combine
 
 public enum SettingsTab: String, CaseIterable, Identifiable {
     case general = "general"
+    case interface = "interface"
     case translation = "translation"
     case shortcuts = "shortcuts"
     case speech = "speech"
@@ -14,17 +15,19 @@ public enum SettingsTab: String, CaseIterable, Identifiable {
     
     public var title: String {
         switch self {
-        case .general: return "通用"
-        case .translation: return "翻译服务"
-        case .shortcuts: return "快捷键"
-        case .speech: return "语音合成"
-        case .about: return "关于"
+        case .general: return loc("tab_general")
+        case .interface: return loc("tab_interface")
+        case .translation: return loc("tab_translation")
+        case .shortcuts: return loc("tab_shortcuts")
+        case .speech: return loc("tab_speech")
+        case .about: return loc("tab_about")
         }
     }
     
     public var icon: String {
         switch self {
         case .general: return "gearshape"
+        case .interface: return "macwindow"
         case .translation: return "globe"
         case .shortcuts: return "command"
         case .speech: return "waveform"
@@ -37,6 +40,7 @@ public struct SettingsView: View {
     @Environment(\.colorScheme) private var colorScheme
     private var isDark: Bool { colorScheme == .dark }
     
+    @ObservedObject private var locManager = LocalizationManager.shared
     @ObservedObject private var controller = SettingsWindowController.shared
     private var selectedTab: SettingsTab { controller.selectedTab }
     @ObservedObject private var hotKeyManager = GlobalHotKeyManager.shared
@@ -53,7 +57,6 @@ public struct SettingsView: View {
     @ObservedObject private var deeplConfig = DeepLConfig.shared
     @ObservedObject private var msTransConfig = MicrosoftConfig.shared
     @ObservedObject private var baiduConfig = BaiduConfig.shared
-    @ObservedObject private var tencentConfig = TencentConfig.shared
     @ObservedObject private var alibabaConfig = AlibabaConfig.shared
     @ObservedObject private var volcConfig = VolcengineConfig.shared
     
@@ -82,12 +85,6 @@ public struct SettingsView: View {
     @State private var inputBaiduSecretKey: String = ""
     @State private var isBaiduKeyVisible: Bool = false
     
-    // Tencent Inputs
-    @State private var inputTencentSecretId: String = ""
-    @State private var inputTencentSecretKey: String = ""
-    @State private var inputTencentRegion: String = "ap-guangzhou"
-    @State private var isTencentKeyVisible: Bool = false
-    
     // Alibaba Inputs
     @State private var inputAlibabaKeyId: String = ""
     @State private var inputAlibabaKeySecret: String = ""
@@ -104,7 +101,16 @@ public struct SettingsView: View {
     @State private var testMessage: String = ""
     @State private var showSavedAlert: Bool = false
     
-    // Speech Testing State
+    // Google Speech Config & State
+    @ObservedObject private var googleSpeechConfig = GoogleSpeechConfig.shared
+    @State private var inputGoogleSpeechKey: String = ""
+    @State private var isGoogleSpeechKeyVisible: Bool = false
+    @State private var isGoogleSpeechTesting: Bool = false
+    @State private var googleSpeechTestSuccess: Bool? = nil
+    @State private var googleSpeechTestMessage: String = ""
+    @State private var showGoogleSpeechSavedAlert: Bool = false
+    
+    // Microsoft Speech Testing State
     @State private var inputMsKey: String = ""
     @State private var inputMsRegion: String = "eastasia"
     @State private var isMsKeyVisible: Bool = false
@@ -139,6 +145,12 @@ public struct SettingsView: View {
                 case .general:
                     ScrollView {
                         generalSection
+                            .padding(.vertical, 32)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
+                case .interface:
+                    ScrollView {
+                        interfaceSection
                             .padding(.vertical, 32)
                             .frame(maxWidth: .infinity, alignment: .center)
                     }
@@ -186,14 +198,12 @@ public struct SettingsView: View {
             inputMsTransRegion = msTransConfig.region
             inputBaiduAppId = baiduConfig.appId
             inputBaiduSecretKey = baiduConfig.secretKey
-            inputTencentSecretId = tencentConfig.secretId
-            inputTencentSecretKey = tencentConfig.secretKey
-            inputTencentRegion = tencentConfig.region
             inputAlibabaKeyId = alibabaConfig.accessKeyId
             inputAlibabaKeySecret = alibabaConfig.accessKeySecret
             inputAK = volcConfig.accessKey
             inputSK = volcConfig.secretKey
             
+            inputGoogleSpeechKey = googleSpeechConfig.apiKey
             inputMsKey = msSpeechConfig.apiKey
             inputMsRegion = msSpeechConfig.region
             selectionManager.checkAccessibilityPermission()
@@ -209,7 +219,7 @@ public struct SettingsView: View {
                 .font(.system(size: 11))
                 .foregroundColor(.secondary)
             
-            Text("所有密钥与偏好数据均安全加密存储于本地 macOS 偏好设置中，不经过任何中间服务器")
+            Text(loc("bottom_status_security"))
                 .font(.system(size: 11))
                 .foregroundColor(.secondary)
             
@@ -225,7 +235,7 @@ public struct SettingsView: View {
                     .foregroundColor(.secondary)
             }
             .buttonStyle(.plain)
-            .help("帮助与反馈")
+            .help(loc("help_feedback"))
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 9)
@@ -242,7 +252,7 @@ public struct SettingsView: View {
         VStack(spacing: 20) {
             // 1. 目标语言偏好组
             HStack(alignment: .top, spacing: 14) {
-                Text("主要语言：")
+                Text(loc("primary_language"))
                     .font(.system(size: 13))
                     .foregroundColor(.primary)
                     .frame(width: labelWidth, alignment: .trailing)
@@ -261,7 +271,7 @@ public struct SettingsView: View {
                     .pickerStyle(.menu)
                     .frame(width: controlWidth, alignment: .leading)
                     
-                    Text("源语言为自动检测时，所有外语优先翻译为此语言（默认为简体中文）")
+                    Text(loc("primary_language_desc"))
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -270,7 +280,7 @@ public struct SettingsView: View {
             }
             
             HStack(alignment: .top, spacing: 14) {
-                Text("优先语言：")
+                Text(loc("secondary_language"))
                     .font(.system(size: 13))
                     .foregroundColor(.primary)
                     .frame(width: labelWidth, alignment: .trailing)
@@ -289,7 +299,7 @@ public struct SettingsView: View {
                     .pickerStyle(.menu)
                     .frame(width: controlWidth, alignment: .leading)
                     
-                    Text("输入主要语言时，默认翻译为此目标语言（默认为英语）")
+                    Text(loc("secondary_language_desc"))
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -297,12 +307,122 @@ public struct SettingsView: View {
                 .frame(width: rightColumnWidth, alignment: .leading)
             }
             
-            // 组间留白 (类似 Safari 通用设置中的分组留白)
+            // 组间留白
             Spacer().frame(height: 6)
             
-            // 2. 外观与窗口尺寸组
+            // 2. 窗口交互行为组
             HStack(alignment: .top, spacing: 14) {
-                Text("窗口宽度：")
+                Text(loc("window_behavior"))
+                    .font(.system(size: 13))
+                    .foregroundColor(.primary)
+                    .frame(width: labelWidth, alignment: .trailing)
+                    .padding(.top, 2)
+                
+                VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Toggle(loc("close_on_focus_lost"), isOn: Binding(
+                            get: { windowManager.closeOnClickOutside },
+                            set: { windowManager.setAlwaysOnTop(!$0) }
+                        ))
+                        .toggleStyle(.checkbox)
+                        
+                        Text(loc("close_on_focus_lost_desc"))
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                            .padding(.leading, 18)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 3) {
+                        Toggle(loc("clear_on_open"), isOn: $clearContentOnOpen)
+                            .toggleStyle(.checkbox)
+                        
+                        Text(loc("clear_on_open_desc"))
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                            .padding(.leading, 18)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .frame(width: rightColumnWidth, alignment: .leading)
+            }
+            
+            // 组间留白
+            Spacer().frame(height: 6)
+            
+            // 4. 系统启动设置
+            HStack(alignment: .top, spacing: 14) {
+                Text(loc("launch_at_login"))
+                    .font(.system(size: 13))
+                    .foregroundColor(.primary)
+                    .frame(width: labelWidth, alignment: .trailing)
+                    .padding(.top, 2)
+                
+                VStack(alignment: .leading, spacing: 3) {
+                    Toggle(loc("launch_at_login_toggle"), isOn: Binding(
+                        get: { launchManager.isEnabled },
+                        set: { launchManager.setEnabled($0) }
+                    ))
+                    .toggleStyle(.checkbox)
+                    
+                    Text(loc("launch_at_login_desc"))
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 18)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(width: rightColumnWidth, alignment: .leading)
+            }
+        }
+        .frame(width: 564, alignment: .center)
+    }
+    
+    // MARK: - 2. 界面设置 (界面语言 / 窗口宽度 / 状态栏图标)
+    @ViewBuilder
+    private var interfaceSection: some View {
+        let labelWidth: CGFloat = 170
+        let controlWidth: CGFloat = 220
+        let rightColumnWidth: CGFloat = 380
+        
+        VStack(spacing: 20) {
+            // 1. 界面语言偏好组
+            HStack(alignment: .top, spacing: 14) {
+                Text(loc("app_interface_language"))
+                    .font(.system(size: 13))
+                    .foregroundColor(.primary)
+                    .frame(width: labelWidth, alignment: .trailing)
+                    .padding(.top, 4)
+                
+                VStack(alignment: .leading, spacing: 5) {
+                    Picker("", selection: Binding(
+                        get: { locManager.selectedLanguage },
+                        set: {
+                            locManager.setLanguage($0)
+                            SettingsWindowController.shared.updateLocalization()
+                        }
+                    )) {
+                        ForEach(AppInterfaceLanguage.allCases) { lang in
+                            Text(lang.displayName).tag(lang)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(width: controlWidth, alignment: .leading)
+                    
+                    Text(loc("app_interface_language_desc"))
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(width: rightColumnWidth, alignment: .leading)
+            }
+            
+            // 组间留白
+            Spacer().frame(height: 6)
+            
+            // 2. 窗口宽度组
+            HStack(alignment: .top, spacing: 14) {
+                Text(loc("window_width"))
                     .font(.system(size: 13))
                     .foregroundColor(.primary)
                     .frame(width: labelWidth, alignment: .trailing)
@@ -313,14 +433,14 @@ public struct SettingsView: View {
                         get: { windowManager.widthMode },
                         set: { windowManager.setWidthMode($0) }
                     )) {
-                        Text("标准宽度 (500 pt)").tag(WindowWidthMode.standard)
-                        Text("较宽尺寸 (640 pt)").tag(WindowWidthMode.wide)
+                        Text(loc("width_standard")).tag(WindowWidthMode.standard)
+                        Text(loc("width_wide")).tag(WindowWidthMode.wide)
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
                     .frame(width: controlWidth, alignment: .leading)
                     
-                    Text("调整翻译悬浮卡片的展开宽度，标准尺寸小巧精致，较宽适合长文")
+                    Text(loc("window_width_desc"))
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -328,8 +448,12 @@ public struct SettingsView: View {
                 .frame(width: rightColumnWidth, alignment: .leading)
             }
             
+            // 组间留白
+            Spacer().frame(height: 6)
+            
+            // 3. 状态栏图标组
             HStack(alignment: .top, spacing: 14) {
-                Text("状态栏图标：")
+                Text(loc("menu_bar_icon"))
                     .font(.system(size: 13))
                     .foregroundColor(.primary)
                     .frame(width: labelWidth, alignment: .trailing)
@@ -348,76 +472,9 @@ public struct SettingsView: View {
                     .pickerStyle(.menu)
                     .frame(width: controlWidth, alignment: .leading)
                     
-                    Text("选择在顶部 macOS 状态栏常驻显示的图标风格")
+                    Text(loc("menu_bar_icon_desc"))
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .frame(width: rightColumnWidth, alignment: .leading)
-            }
-            
-            // 组间留白
-            Spacer().frame(height: 6)
-            
-            // 3. 窗口交互行为组 (macOS 原生复选框)
-            HStack(alignment: .top, spacing: 14) {
-                Text("窗口行为：")
-                    .font(.system(size: 13))
-                    .foregroundColor(.primary)
-                    .frame(width: labelWidth, alignment: .trailing)
-                    .padding(.top, 2)
-                
-                VStack(alignment: .leading, spacing: 14) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Toggle("聚焦丢失时自动关闭窗口（类似 Spotlight）", isOn: Binding(
-                            get: { windowManager.closeOnClickOutside },
-                            set: { windowManager.setAlwaysOnTop(!$0) }
-                        ))
-                        .toggleStyle(.checkbox)
-                        
-                        Text("开启后，鼠标点击翻译卡片之外的区域窗口会自动隐藏。关闭后窗口保持置顶展示。")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                            .padding(.leading, 18)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 3) {
-                        Toggle("重新呼出时不保留上次翻译内容", isOn: $clearContentOnOpen)
-                            .toggleStyle(.checkbox)
-                        
-                        Text("开启后，每次呼出或打开窗口均自动清空上次的输入与译文，直接进入全新的无内容输入状态。")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                            .padding(.leading, 18)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                .frame(width: rightColumnWidth, alignment: .leading)
-            }
-            
-            // 组间留白
-            Spacer().frame(height: 6)
-            
-            // 4. 系统启动设置
-            HStack(alignment: .top, spacing: 14) {
-                Text("系统启动：")
-                    .font(.system(size: 13))
-                    .foregroundColor(.primary)
-                    .frame(width: labelWidth, alignment: .trailing)
-                    .padding(.top, 2)
-                
-                VStack(alignment: .leading, spacing: 3) {
-                    Toggle("在登录时启动 Slate", isOn: Binding(
-                        get: { launchManager.isEnabled },
-                        set: { launchManager.setEnabled($0) }
-                    ))
-                    .toggleStyle(.checkbox)
-                    
-                    Text("开机并登录 macOS 时自动在后台静默启动，随时响应快捷键呼出")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                        .padding(.leading, 18)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(width: rightColumnWidth, alignment: .leading)
@@ -436,7 +493,7 @@ public struct SettingsView: View {
         VStack(spacing: 22) {
             // 1. 全局呼出快捷键
             HStack(alignment: .top, spacing: 14) {
-                Text("呼出快捷键：")
+                Text(loc("shortcut_summon_label"))
                     .font(.system(size: 13))
                     .foregroundColor(.primary)
                     .frame(width: labelWidth, alignment: .trailing)
@@ -455,7 +512,7 @@ public struct SettingsView: View {
                     .pickerStyle(.menu)
                     .frame(width: controlWidth, alignment: .leading)
                     
-                    Text("在任意应用程序中按下快捷键，快速呼出或隐藏翻译悬浮卡片")
+                    Text(loc("shortcut_summon_desc"))
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -465,7 +522,7 @@ public struct SettingsView: View {
             
             // 2. 划词翻译快捷键
             HStack(alignment: .top, spacing: 14) {
-                Text("划词翻译快捷键：")
+                Text(loc("shortcut_selection_label"))
                     .font(.system(size: 13))
                     .foregroundColor(.primary)
                     .frame(width: labelWidth, alignment: .trailing)
@@ -484,7 +541,7 @@ public struct SettingsView: View {
                     .pickerStyle(.menu)
                     .frame(width: controlWidth, alignment: .leading)
                     
-                    Text("选中文本后按下该快捷键，自动读取选中文本并直接打开翻译")
+                    Text(loc("shortcut_selection_desc"))
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -495,12 +552,12 @@ public struct SettingsView: View {
                             .fill(selectionManager.isAccessibilityTrusted ? Color.green : Color.orange)
                             .frame(width: 6, height: 6)
                         
-                        Text(selectionManager.isAccessibilityTrusted ? "辅助功能权限已就绪" : "需系统辅助功能权限以获取选中文本")
+                        Text(selectionManager.isAccessibilityTrusted ? loc("accessibility_ready") : loc("accessibility_needed"))
                             .font(.system(size: 11))
                             .foregroundColor(selectionManager.isAccessibilityTrusted ? .secondary : .orange)
                         
                         if !selectionManager.isAccessibilityTrusted {
-                            Button("去授权 ↗") {
+                            Button(loc("btn_authorize")) {
                                 selectionManager.requestAccessibilityPermission()
                             }
                             .buttonStyle(.link)
@@ -514,7 +571,7 @@ public struct SettingsView: View {
             
             // 3. 截图 OCR 快捷键
             HStack(alignment: .top, spacing: 14) {
-                Text("截图 OCR 快捷键：")
+                Text(loc("shortcut_ocr_label"))
                     .font(.system(size: 13))
                     .foregroundColor(.primary)
                     .frame(width: labelWidth, alignment: .trailing)
@@ -533,7 +590,7 @@ public struct SettingsView: View {
                     .pickerStyle(.menu)
                     .frame(width: controlWidth, alignment: .leading)
                     
-                    Text("拖拽框选屏幕任意不可选中或图片区域，本地系统 Vision OCR 离线识别并翻译")
+                    Text(loc("shortcut_ocr_desc"))
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -546,19 +603,19 @@ public struct SettingsView: View {
             
             // 底部操作与提示说明 (贴合 Safari 截图 2 下方细则排版)
             HStack(alignment: .top, spacing: 14) {
-                Text("使用提示：")
+                Text(loc("shortcut_tips_header"))
                     .font(.system(size: 12))
                     .foregroundColor(.secondary)
                     .frame(width: labelWidth, alignment: .trailing)
                 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("• 全局快捷键在任意软件前台运行时均可直接生效。")
+                    Text(loc("shortcut_tip_1"))
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
-                    Text("• 划词翻译通过 macOS 辅助功能 API 模拟读取，不侵入其他软件。")
+                    Text(loc("shortcut_tip_2"))
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
-                    Text("• 截图识别全程在设备本地神经引擎中离线完成，保护屏幕隐私。")
+                    Text(loc("shortcut_tip_3"))
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                 }
@@ -574,7 +631,7 @@ public struct SettingsView: View {
         HStack(spacing: 16) {
             // 左侧服务商列表 (Master)
             VStack(alignment: .leading, spacing: 6) {
-                Text("服务商列表")
+                Text(loc("provider_list_title"))
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.secondary)
                     .padding(.horizontal, 8)
@@ -592,16 +649,8 @@ public struct SettingsView: View {
                                 testMessage = ""
                             } label: {
                                 HStack(spacing: 9) {
-                                    // 品牌小图标
-                                    ZStack {
-                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                            .fill(isSelectedForEdit ? Color.white.opacity(0.24) : provider.accentColor.opacity(0.12))
-                                            .frame(width: 24, height: 24)
-                                        
-                                        Image(systemName: provider.icon)
-                                            .font(.system(size: 12))
-                                            .foregroundColor(isSelectedForEdit ? .white : provider.accentColor)
-                                    }
+                                    // 品牌小图标（无底色，无多余边距，25%圆角完整显示）
+                                    ProviderIconView(provider: provider, size: 24, isSelected: isSelectedForEdit)
                                     
                                     // 标题
                                     Text(provider.title)
@@ -617,7 +666,7 @@ public struct SettingsView: View {
                                             .font(.system(size: 12, weight: .semibold))
                                             .foregroundColor(isSelectedForEdit ? .white : .green)
                                     } else if !provider.requiresConfig {
-                                        Text("免配置")
+                                        Text(loc("badge_free_config"))
                                             .font(.system(size: 9))
                                             .foregroundColor(isSelectedForEdit ? .white.opacity(0.85) : .secondary)
                                     } else if !provider.isConfigured {
@@ -679,15 +728,7 @@ public struct SettingsView: View {
         VStack(alignment: .leading, spacing: 16) {
             // 顶栏：图标、标题、副标题与设为默认按钮
             HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(provider.accentColor.opacity(0.12))
-                        .frame(width: 38, height: 38)
-                    
-                    Image(systemName: provider.icon)
-                        .font(.system(size: 19))
-                        .foregroundColor(provider.accentColor)
-                }
+                ProviderIconView(provider: provider, size: 38)
                 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
@@ -696,7 +737,7 @@ public struct SettingsView: View {
                             .foregroundColor(.primary)
                         
                         if !provider.requiresConfig {
-                            Text("免配置即用")
+                            Text(loc("badge_free_ready"))
                                 .font(.system(size: 10, weight: .medium))
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
@@ -705,7 +746,7 @@ public struct SettingsView: View {
                         } else if provider.isConfigured {
                             HStack(spacing: 3) {
                                 Circle().fill(Color.green).frame(width: 5, height: 5)
-                                Text("已就绪")
+                                Text(loc("badge_ready"))
                                     .font(.system(size: 10, weight: .medium))
                                     .foregroundColor(.green)
                             }
@@ -715,7 +756,7 @@ public struct SettingsView: View {
                         } else {
                             HStack(spacing: 3) {
                                 Circle().fill(Color.orange).frame(width: 5, height: 5)
-                                Text("需配置")
+                                Text(loc("badge_need_config"))
                                     .font(.system(size: 10, weight: .medium))
                                     .foregroundColor(.orange)
                             }
@@ -738,7 +779,7 @@ public struct SettingsView: View {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundColor(.green)
                             .font(.system(size: 13))
-                        Text("当前默认引擎")
+                        Text(loc("default_engine_active"))
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(.green)
                     }
@@ -746,7 +787,7 @@ public struct SettingsView: View {
                     .padding(.vertical, 5)
                     .background(Capsule().fill(Color.green.opacity(0.12)))
                 } else {
-                    Button("设为默认引擎") {
+                    Button(loc("btn_set_default")) {
                         selectedProvider = provider.rawValue
                         translationService.setProvider(provider)
                     }
@@ -769,8 +810,6 @@ public struct SettingsView: View {
                 microsoftDetailForm
             case .baidu:
                 baiduDetailForm
-            case .tencent:
-                tencentDetailForm
             case .alibaba:
                 alibabaDetailForm
             case .volcengine:
@@ -789,19 +828,19 @@ public struct SettingsView: View {
                             ProgressView()
                                 .controlSize(.small)
                         }
-                        Text(isTesting ? "正在测试..." : "测试连接")
+                        Text(isTesting ? loc("btn_testing") : loc("btn_test_conn"))
                     }
                 }
                 .disabled(isTesting)
                 
                 if provider != .system {
-                    Button("保存配置") {
+                    Button(loc("btn_save_config")) {
                         saveCurrentProvider(provider)
                     }
                     .buttonStyle(.borderedProminent)
                     
                     if showSavedAlert {
-                        Text("已保存！")
+                        Text(loc("alert_saved"))
                             .font(.system(size: 12, weight: .medium))
                             .foregroundColor(.green)
                             .transition(.opacity)
@@ -811,7 +850,7 @@ public struct SettingsView: View {
                 Spacer()
                 
                 if provider != .system {
-                    Button("前往官网获取密钥 ↗") {
+                    Button(loc("btn_get_key_website")) {
                         openPortalForProvider(provider)
                     }
                     .buttonStyle(.link)
@@ -842,9 +881,9 @@ public struct SettingsView: View {
     @ViewBuilder
     private var systemDetailForm: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("macOS 系统离线翻译", systemImage: "internaldrive")
+            Label(loc("system_form_title"), systemImage: "internaldrive")
                 .font(.system(size: 13, weight: .semibold))
-            Text("Apple 翻译内置于 macOS 系统底层，由 Apple 神经网络模型驱动。完全离线可用，响应极快，无需网络连接或配置任何 API 密钥。")
+            Text(loc("system_form_desc"))
                 .font(.system(size: 12))
                 .foregroundColor(.secondary)
                 .lineSpacing(3)
@@ -853,7 +892,7 @@ public struct SettingsView: View {
                 Image(systemName: "checkmark.shield.fill")
                     .foregroundColor(.green)
                     .font(.system(size: 14))
-                Text("系统神经加速支持 · 端侧隐私安全 · 零网络延迟")
+                Text(loc("system_form_features"))
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.secondary)
             }
@@ -866,25 +905,25 @@ public struct SettingsView: View {
     private var googleDetailForm: some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("服务模式说明")
+                Text(loc("google_form_mode_title"))
                     .font(.system(size: 13, weight: .semibold))
-                Text("• 免密钥模式：留空即可直接使用 Google 免费网页翻译通道，极速便捷。\n• 私有密钥模式：如需大规模调用或防止频控，可填入 Google Cloud Translation API Key。")
+                Text(loc("google_form_mode_desc"))
                     .font(.system(size: 12))
                     .foregroundColor(.secondary)
                     .lineSpacing(3)
             }
             
             VStack(alignment: .leading, spacing: 6) {
-                Text("Google Cloud API Key (可选)")
+                Text(loc("google_form_key_label"))
                     .font(.system(size: 12, weight: .medium))
                 
                 HStack(spacing: 8) {
                     if isGoogleKeyVisible {
-                        TextField("可留空，或输入 AIzaSy...", text: $inputGoogleKey)
+                        TextField(loc("google_form_placeholder"), text: $inputGoogleKey)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 12, design: .monospaced))
                     } else {
-                        SecureField("可留空，或输入 AIzaSy...", text: $inputGoogleKey)
+                        SecureField(loc("google_form_placeholder"), text: $inputGoogleKey)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 12, design: .monospaced))
                     }
@@ -894,7 +933,7 @@ public struct SettingsView: View {
                     } label: {
                         Image(systemName: isGoogleKeyVisible ? "eye.slash" : "eye")
                     }
-                    .help(isGoogleKeyVisible ? "隐藏密钥" : "显示密钥")
+                    .help(isGoogleKeyVisible ? loc("btn_hide_key") : loc("btn_show_key"))
                     
                     Button {
                         if let paste = NSPasteboard.general.string(forType: .string) {
@@ -903,7 +942,7 @@ public struct SettingsView: View {
                     } label: {
                         Image(systemName: "doc.on.clipboard")
                     }
-                    .help("从剪贴板粘贴")
+                    .help(loc("btn_paste_clipboard"))
                 }
             }
         }
@@ -913,24 +952,24 @@ public struct SettingsView: View {
     private var deeplDetailForm: some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("DeepL API 认证密钥")
+                Text(loc("deepl_form_title"))
                     .font(.system(size: 13, weight: .semibold))
-                Text("支持 DeepL API Free（密钥结尾通常为 :fx）与 DeepL API Pro 专业版，程序将自动适配对应的官方请求端点。")
+                Text(loc("deepl_form_desc"))
                     .font(.system(size: 12))
                     .foregroundColor(.secondary)
             }
             
             VStack(alignment: .leading, spacing: 6) {
-                Text("Authentication Key (Auth Key)")
+                Text(loc("deepl_form_key_label"))
                     .font(.system(size: 12, weight: .medium))
                 
                 HStack(spacing: 8) {
                     if isDeepLKeyVisible {
-                        TextField("填入 DeepL 密钥...", text: $inputDeepLKey)
+                        TextField(loc("deepl_form_placeholder"), text: $inputDeepLKey)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 12, design: .monospaced))
                     } else {
-                        SecureField("填入 DeepL 密钥...", text: $inputDeepLKey)
+                        SecureField(loc("deepl_form_placeholder"), text: $inputDeepLKey)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 12, design: .monospaced))
                     }
@@ -940,7 +979,7 @@ public struct SettingsView: View {
                     } label: {
                         Image(systemName: isDeepLKeyVisible ? "eye.slash" : "eye")
                     }
-                    .help(isDeepLKeyVisible ? "隐藏密钥" : "显示密钥")
+                    .help(isDeepLKeyVisible ? loc("btn_hide_key") : loc("btn_show_key"))
                     
                     Button {
                         if let paste = NSPasteboard.general.string(forType: .string) {
@@ -949,7 +988,7 @@ public struct SettingsView: View {
                     } label: {
                         Image(systemName: "doc.on.clipboard")
                     }
-                    .help("从剪贴板粘贴")
+                    .help(loc("btn_paste_clipboard"))
                 }
             }
         }
@@ -959,24 +998,24 @@ public struct SettingsView: View {
     private var microsoftDetailForm: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Azure 翻译服务凭证")
+                Text(loc("ms_trans_form_title"))
                     .font(.system(size: 13, weight: .semibold))
-                Text("填入 Microsoft Azure 认知服务 Translator 实例的订阅密钥及资源所在区域。")
+                Text(loc("ms_trans_form_desc"))
                     .font(.system(size: 12))
                     .foregroundColor(.secondary)
             }
             
             VStack(alignment: .leading, spacing: 6) {
-                Text("Subscription Key (API 密钥)")
+                Text(loc("api_key_subscription"))
                     .font(.system(size: 12, weight: .medium))
                 
                 HStack(spacing: 8) {
                     if isMsTransKeyVisible {
-                        TextField("填入 Azure 翻译密钥...", text: $inputMsTransKey)
+                        TextField(loc("ms_trans_placeholder"), text: $inputMsTransKey)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 12, design: .monospaced))
                     } else {
-                        SecureField("填入 Azure 翻译密钥...", text: $inputMsTransKey)
+                        SecureField(loc("ms_trans_placeholder"), text: $inputMsTransKey)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 12, design: .monospaced))
                     }
@@ -986,7 +1025,7 @@ public struct SettingsView: View {
                     } label: {
                         Image(systemName: isMsTransKeyVisible ? "eye.slash" : "eye")
                     }
-                    .help(isMsTransKeyVisible ? "隐藏密钥" : "显示密钥")
+                    .help(isMsTransKeyVisible ? loc("btn_hide_key") : loc("btn_show_key"))
                     
                     Button {
                         if let paste = NSPasteboard.general.string(forType: .string) {
@@ -995,14 +1034,14 @@ public struct SettingsView: View {
                     } label: {
                         Image(systemName: "doc.on.clipboard")
                     }
-                    .help("从剪贴板粘贴")
+                    .help(loc("btn_paste_clipboard"))
                 }
             }
             
             VStack(alignment: .leading, spacing: 6) {
-                Text("服务区域 (Region)")
+                Text(loc("region_label"))
                     .font(.system(size: 12, weight: .medium))
-                TextField("如 global、eastasia、eastus 等，默认为 global", text: $inputMsTransRegion)
+                TextField(loc("ms_trans_region_placeholder"), text: $inputMsTransRegion)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 12, design: .monospaced))
             }
@@ -1013,19 +1052,19 @@ public struct SettingsView: View {
     private var baiduDetailForm: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("百度翻译开放平台凭证")
+                Text(loc("baidu_form_title"))
                     .font(.system(size: 13, weight: .semibold))
-                Text("在百度翻译开放平台开发者中心申请通用翻译 API，并填写 APP ID 与密钥。")
+                Text(loc("baidu_form_desc"))
                     .font(.system(size: 12))
                     .foregroundColor(.secondary)
             }
             
             VStack(alignment: .leading, spacing: 6) {
-                Text("APP ID")
+                Text(loc("baidu_appid_label"))
                     .font(.system(size: 12, weight: .medium))
                 
                 HStack(spacing: 8) {
-                    TextField("如 20261014000...", text: $inputBaiduAppId)
+                    TextField(loc("baidu_appid_placeholder"), text: $inputBaiduAppId)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(size: 12, design: .monospaced))
                     
@@ -1036,21 +1075,21 @@ public struct SettingsView: View {
                     } label: {
                         Image(systemName: "doc.on.clipboard")
                     }
-                    .help("从剪贴板粘贴")
+                    .help(loc("btn_paste_clipboard"))
                 }
             }
             
             VStack(alignment: .leading, spacing: 6) {
-                Text("密钥 (Secret Key)")
+                Text(loc("secret_key_label"))
                     .font(.system(size: 12, weight: .medium))
                 
                 HStack(spacing: 8) {
                     if isBaiduKeyVisible {
-                        TextField("填入百度翻译密钥...", text: $inputBaiduSecretKey)
+                        TextField(loc("baidu_secret_placeholder"), text: $inputBaiduSecretKey)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 12, design: .monospaced))
                     } else {
-                        SecureField("填入百度翻译密钥...", text: $inputBaiduSecretKey)
+                        SecureField(loc("baidu_secret_placeholder"), text: $inputBaiduSecretKey)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 12, design: .monospaced))
                     }
@@ -1060,7 +1099,7 @@ public struct SettingsView: View {
                     } label: {
                         Image(systemName: isBaiduKeyVisible ? "eye.slash" : "eye")
                     }
-                    .help(isBaiduKeyVisible ? "隐藏密钥" : "显示密钥")
+                    .help(isBaiduKeyVisible ? loc("btn_hide_key") : loc("btn_show_key"))
                     
                     Button {
                         if let paste = NSPasteboard.general.string(forType: .string) {
@@ -1069,82 +1108,8 @@ public struct SettingsView: View {
                     } label: {
                         Image(systemName: "doc.on.clipboard")
                     }
-                    .help("从剪贴板粘贴")
+                    .help(loc("btn_paste_clipboard"))
                 }
-            }
-        }
-    }
-    
-    @ViewBuilder
-    private var tencentDetailForm: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("腾讯云机器翻译凭证")
-                    .font(.system(size: 13, weight: .semibold))
-                Text("前往腾讯云访问管理控制台创建并获取 API 密钥（SecretId 与 SecretKey）。")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-            }
-            
-            VStack(alignment: .leading, spacing: 6) {
-                Text("SecretId")
-                    .font(.system(size: 12, weight: .medium))
-                
-                HStack(spacing: 8) {
-                    TextField("AKID...", text: $inputTencentSecretId)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 12, design: .monospaced))
-                    
-                    Button {
-                        if let paste = NSPasteboard.general.string(forType: .string) {
-                            inputTencentSecretId = paste.trimmingCharacters(in: .whitespacesAndNewlines)
-                        }
-                    } label: {
-                        Image(systemName: "doc.on.clipboard")
-                    }
-                    .help("从剪贴板粘贴")
-                }
-            }
-            
-            VStack(alignment: .leading, spacing: 6) {
-                Text("SecretKey")
-                    .font(.system(size: 12, weight: .medium))
-                
-                HStack(spacing: 8) {
-                    if isTencentKeyVisible {
-                        TextField("填入腾讯云 SecretKey...", text: $inputTencentSecretKey)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(size: 12, design: .monospaced))
-                    } else {
-                        SecureField("填入腾讯云 SecretKey...", text: $inputTencentSecretKey)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(size: 12, design: .monospaced))
-                    }
-                    
-                    Button {
-                        isTencentKeyVisible.toggle()
-                    } label: {
-                        Image(systemName: isTencentKeyVisible ? "eye.slash" : "eye")
-                    }
-                    .help(isTencentKeyVisible ? "隐藏密钥" : "显示密钥")
-                    
-                    Button {
-                        if let paste = NSPasteboard.general.string(forType: .string) {
-                            inputTencentSecretKey = paste.trimmingCharacters(in: .whitespacesAndNewlines)
-                        }
-                    } label: {
-                        Image(systemName: "doc.on.clipboard")
-                    }
-                    .help("从剪贴板粘贴")
-                }
-            }
-            
-            VStack(alignment: .leading, spacing: 6) {
-                Text("服务地域 (Region)")
-                    .font(.system(size: 12, weight: .medium))
-                TextField("如 ap-guangzhou、ap-shanghai 等，默认为 ap-guangzhou", text: $inputTencentRegion)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 12, design: .monospaced))
             }
         }
     }
@@ -1153,9 +1118,9 @@ public struct SettingsView: View {
     private var alibabaDetailForm: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("阿里云达摩院翻译凭证")
+                Text(loc("alibaba_form_title"))
                     .font(.system(size: 13, weight: .semibold))
-                Text("在阿里云 RAM 控制台获取 AccessKey ID 与 AccessKey Secret，并开通机器翻译通用版。")
+                Text(loc("alibaba_form_desc"))
                     .font(.system(size: 12))
                     .foregroundColor(.secondary)
             }
@@ -1176,7 +1141,7 @@ public struct SettingsView: View {
                     } label: {
                         Image(systemName: "doc.on.clipboard")
                     }
-                    .help("从剪贴板粘贴")
+                    .help(loc("btn_paste_clipboard"))
                 }
             }
             
@@ -1186,11 +1151,11 @@ public struct SettingsView: View {
                 
                 HStack(spacing: 8) {
                     if isAlibabaKeyVisible {
-                        TextField("填入阿里云 AccessKey Secret...", text: $inputAlibabaKeySecret)
+                        TextField(loc("alibaba_secret_placeholder"), text: $inputAlibabaKeySecret)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 12, design: .monospaced))
                     } else {
-                        SecureField("填入阿里云 AccessKey Secret...", text: $inputAlibabaKeySecret)
+                        SecureField(loc("alibaba_secret_placeholder"), text: $inputAlibabaKeySecret)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 12, design: .monospaced))
                     }
@@ -1200,7 +1165,7 @@ public struct SettingsView: View {
                     } label: {
                         Image(systemName: isAlibabaKeyVisible ? "eye.slash" : "eye")
                     }
-                    .help(isAlibabaKeyVisible ? "隐藏密钥" : "显示密钥")
+                    .help(isAlibabaKeyVisible ? loc("btn_hide_key") : loc("btn_show_key"))
                     
                     Button {
                         if let paste = NSPasteboard.general.string(forType: .string) {
@@ -1209,7 +1174,7 @@ public struct SettingsView: View {
                     } label: {
                         Image(systemName: "doc.on.clipboard")
                     }
-                    .help("从剪贴板粘贴")
+                    .help(loc("btn_paste_clipboard"))
                 }
             }
         }
@@ -1219,9 +1184,9 @@ public struct SettingsView: View {
     private var volcengineDetailForm: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("火山引擎机器翻译凭证")
+                Text(loc("volcengine_form_title"))
                     .font(.system(size: 13, weight: .semibold))
-                Text("调用火山引擎机器翻译 API（TranslateText），需填入火山引擎访问控制中的 AccessKey 与 SecretKey。")
+                Text(loc("volcengine_form_desc"))
                     .font(.system(size: 12))
                     .foregroundColor(.secondary)
             }
@@ -1242,7 +1207,7 @@ public struct SettingsView: View {
                     } label: {
                         Image(systemName: "doc.on.clipboard")
                     }
-                    .help("从剪贴板粘贴")
+                    .help(loc("btn_paste_clipboard"))
                 }
             }
             
@@ -1252,11 +1217,11 @@ public struct SettingsView: View {
                 
                 HStack(spacing: 8) {
                     if isSKVisible {
-                        TextField("密钥内容...", text: $inputSK)
+                        TextField(loc("volcengine_secret_placeholder"), text: $inputSK)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 12, design: .monospaced))
                     } else {
-                        SecureField("密钥内容...", text: $inputSK)
+                        SecureField(loc("volcengine_secret_placeholder"), text: $inputSK)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 12, design: .monospaced))
                     }
@@ -1266,7 +1231,7 @@ public struct SettingsView: View {
                     } label: {
                         Image(systemName: isSKVisible ? "eye.slash" : "eye")
                     }
-                    .help(isSKVisible ? "隐藏密钥" : "显示密钥")
+                    .help(isSKVisible ? loc("btn_hide_key") : loc("btn_show_key"))
                     
                     Button {
                         if let paste = NSPasteboard.general.string(forType: .string) {
@@ -1275,7 +1240,7 @@ public struct SettingsView: View {
                     } label: {
                         Image(systemName: "doc.on.clipboard")
                     }
-                    .help("从剪贴板粘贴")
+                    .help(loc("btn_paste_clipboard"))
                 }
             }
         }
@@ -1287,7 +1252,7 @@ public struct SettingsView: View {
         HStack(spacing: 16) {
             // 左侧语音引擎列表 (Master)
             VStack(alignment: .leading, spacing: 6) {
-                Text("语音引擎列表")
+                Text(loc("speech_list_title"))
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.secondary)
                     .padding(.horizontal, 8)
@@ -1305,16 +1270,8 @@ public struct SettingsView: View {
                                 msTestMessage = ""
                             } label: {
                                 HStack(spacing: 9) {
-                                    // 品牌小图标
-                                    ZStack {
-                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                            .fill(isSelectedForEdit ? Color.white.opacity(0.24) : provider.accentColor.opacity(0.12))
-                                            .frame(width: 24, height: 24)
-                                        
-                                        Image(systemName: provider.icon)
-                                            .font(.system(size: 12))
-                                            .foregroundColor(isSelectedForEdit ? .white : provider.accentColor)
-                                    }
+                                    // 品牌小图标（无底色，无多余边距，25%圆角完整显示）
+                                    SpeechProviderIconView(provider: provider, size: 24, isSelected: isSelectedForEdit)
                                     
                                     // 标题
                                     Text(provider.title)
@@ -1330,7 +1287,7 @@ public struct SettingsView: View {
                                             .font(.system(size: 12, weight: .semibold))
                                             .foregroundColor(isSelectedForEdit ? .white : .green)
                                     } else if !provider.requiresConfig {
-                                        Text("免配置")
+                                        Text(loc("badge_free_config"))
                                             .font(.system(size: 9))
                                             .foregroundColor(isSelectedForEdit ? .white.opacity(0.85) : .secondary)
                                     } else if !provider.isConfigured {
@@ -1392,15 +1349,7 @@ public struct SettingsView: View {
         VStack(alignment: .leading, spacing: 16) {
             // 顶栏：图标、标题、副标题与设为默认按钮
             HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(provider.accentColor.opacity(0.12))
-                        .frame(width: 38, height: 38)
-                    
-                    Image(systemName: provider.icon)
-                        .font(.system(size: 19))
-                        .foregroundColor(provider.accentColor)
-                }
+                SpeechProviderIconView(provider: provider, size: 38)
                 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
@@ -1409,7 +1358,7 @@ public struct SettingsView: View {
                             .foregroundColor(.primary)
                         
                         if !provider.requiresConfig {
-                            Text("免配置即用")
+                            Text(loc("badge_free_ready"))
                                 .font(.system(size: 10, weight: .medium))
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
@@ -1418,7 +1367,7 @@ public struct SettingsView: View {
                         } else if provider.isConfigured {
                             HStack(spacing: 3) {
                                 Circle().fill(Color.green).frame(width: 5, height: 5)
-                                Text("已就绪")
+                                Text(loc("badge_ready"))
                                     .font(.system(size: 10, weight: .medium))
                                     .foregroundColor(.green)
                             }
@@ -1428,7 +1377,7 @@ public struct SettingsView: View {
                         } else {
                             HStack(spacing: 3) {
                                 Circle().fill(Color.orange).frame(width: 5, height: 5)
-                                Text("需配置")
+                                Text(loc("badge_need_config"))
                                     .font(.system(size: 10, weight: .medium))
                                     .foregroundColor(.orange)
                             }
@@ -1451,7 +1400,7 @@ public struct SettingsView: View {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundColor(.green)
                             .font(.system(size: 13))
-                        Text("当前默认引擎")
+                        Text(loc("default_engine_active"))
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(.green)
                     }
@@ -1459,7 +1408,7 @@ public struct SettingsView: View {
                     .padding(.vertical, 5)
                     .background(Capsule().fill(Color.green.opacity(0.12)))
                 } else {
-                    Button("设为默认引擎") {
+                    Button(loc("btn_set_default")) {
                         speechManager.setProvider(provider)
                     }
                     .buttonStyle(.bordered)
@@ -1473,6 +1422,8 @@ public struct SettingsView: View {
             switch provider {
             case .system:
                 systemSpeechEditor
+            case .google:
+                googleSpeechEditor
             case .microsoft:
                 microsoftSpeechEditor
             }
@@ -1486,7 +1437,7 @@ public struct SettingsView: View {
             Divider()
             
             HStack {
-                Text("语速")
+                Text(loc("speed_rate"))
                     .font(.system(size: 13))
                 
                 Spacer()
@@ -1507,12 +1458,12 @@ public struct SettingsView: View {
             Divider()
             
             HStack {
-                Text("选择声音")
+                Text(loc("voice_choose_label"))
                     .font(.system(size: 13))
                 
                 Spacer()
                 
-                Button("设置声音") {
+                Button(loc("btn_configure_voice")) {
                     voiceSheetProvider = .system
                     showVoiceSettingsSheet = true
                 }
@@ -1524,6 +1475,151 @@ public struct SettingsView: View {
         }
     }
     
+    // MARK: - Google 语音配置与试听
+    @ViewBuilder
+    private var googleSpeechEditor: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            // 说明横幅：免费模式与可选 Cloud TTS
+            VStack(alignment: .leading, spacing: 6) {
+                Text(loc("google_speech_mode_title"))
+                    .font(.system(size: 13, weight: .semibold))
+                Text(loc("google_speech_mode_desc"))
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+                    .lineSpacing(2)
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 8).fill(Color.blue.opacity(0.06)))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.blue.opacity(0.18), lineWidth: 1))
+            
+            // 选填的 Google Cloud Text-to-Speech API Key
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(loc("google_speech_key_label"))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    if !inputGoogleSpeechKey.isEmpty {
+                        Button(loc("btn_clear")) {
+                            inputGoogleSpeechKey = ""
+                        }
+                        .buttonStyle(.link)
+                        .font(.system(size: 11))
+                    }
+                }
+                
+                HStack {
+                    if isGoogleSpeechKeyVisible {
+                        TextField(loc("google_speech_placeholder"), text: $inputGoogleSpeechKey)
+                            .textFieldStyle(.plain)
+                    } else {
+                        SecureField(loc("google_speech_placeholder"), text: $inputGoogleSpeechKey)
+                            .textFieldStyle(.plain)
+                    }
+                    
+                    Button {
+                        isGoogleSpeechKeyVisible.toggle()
+                    } label: {
+                        Image(systemName: isGoogleSpeechKeyVisible ? "eye.slash" : "eye")
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button {
+                        if let clip = NSPasteboard.general.string(forType: .string) {
+                            inputGoogleSpeechKey = clip.trimmingCharacters(in: .whitespacesAndNewlines)
+                        }
+                    } label: {
+                        Image(systemName: "doc.on.clipboard")
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help(loc("btn_paste_clipboard"))
+                }
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 6).fill(Color(NSColor.textBackgroundColor)))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.gray.opacity(0.2), lineWidth: 1))
+            }
+            
+            // 动作按钮栏：测试发音、保存、前往控制台
+            HStack(spacing: 12) {
+                Button {
+                    testGoogleSpeech()
+                } label: {
+                    HStack(spacing: 4) {
+                        if isGoogleSpeechTesting {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                        Text(isGoogleSpeechTesting ? loc("btn_testing") : loc("btn_test_conn"))
+                    }
+                }
+                .disabled(isGoogleSpeechTesting)
+                
+                Button(loc("btn_save_config")) {
+                    saveGoogleSpeechKeys()
+                }
+                .buttonStyle(.borderedProminent)
+                
+                if showGoogleSpeechSavedAlert {
+                    Text(loc("alert_saved"))
+                        .font(.system(size: 12))
+                        .foregroundColor(.green)
+                        .transition(.opacity)
+                }
+                
+                Spacer()
+                
+                Button(loc("btn_get_google_key")) {
+                    if let url = URL(string: "https://console.cloud.google.com/apis/credentials") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                .buttonStyle(.link)
+                .font(.system(size: 12))
+            }
+            
+            if let success = googleSpeechTestSuccess {
+                HStack(spacing: 8) {
+                    Image(systemName: success ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .foregroundColor(success ? .green : .red)
+                    Text(googleSpeechTestMessage)
+                        .font(.system(size: 12))
+                        .foregroundColor(success ? .green : .red)
+                }
+                .padding(.top, 4)
+            }
+            
+            // 语速设置行（统一简洁样式）
+            VStack(spacing: 0) {
+                Divider()
+                
+                HStack {
+                    Text(loc("speed_rate"))
+                        .font(.system(size: 13))
+                    
+                    Spacer()
+                    
+                    Picker("", selection: Binding(
+                        get: { speechManager.speechRate },
+                        set: { speechManager.setRate($0) }
+                    )) {
+                        ForEach(SpeedRateOption.options) { opt in
+                            Text(opt.label).tag(opt.rate)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(width: 85)
+                }
+                .padding(.vertical, 8)
+                
+                Divider()
+            }
+        }
+    }
+    
     // MARK: - 微软 Azure 语音配置与试听
     @ViewBuilder
     private var microsoftSpeechEditor: some View {
@@ -1531,14 +1627,14 @@ public struct SettingsView: View {
             // Subscription Key
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Text("Subscription Key (API 密钥)")
+                    Text(loc("api_key_subscription"))
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.secondary)
                     
                     Spacer()
                     
                     if !inputMsKey.isEmpty {
-                        Button("清空") {
+                        Button(loc("btn_clear")) {
                             inputMsKey = ""
                         }
                         .buttonStyle(.link)
@@ -1548,10 +1644,10 @@ public struct SettingsView: View {
                 
                 HStack {
                     if isMsKeyVisible {
-                        TextField("填入 Azure 语音资源的密钥 (Key 1 或 Key 2)", text: $inputMsKey)
+                        TextField(loc("ms_speech_key_placeholder"), text: $inputMsKey)
                             .textFieldStyle(.plain)
                     } else {
-                        SecureField("填入 Azure 语音资源的密钥 (Key 1 或 Key 2)", text: $inputMsKey)
+                        SecureField(loc("ms_speech_key_placeholder"), text: $inputMsKey)
                             .textFieldStyle(.plain)
                     }
                     
@@ -1572,7 +1668,7 @@ public struct SettingsView: View {
                             .foregroundColor(.secondary)
                     }
                     .buttonStyle(.plain)
-                    .help("从剪贴板粘贴")
+                    .help(loc("btn_paste_clipboard"))
                 }
                 .padding(8)
                 .background(RoundedRectangle(cornerRadius: 6).fill(Color(NSColor.textBackgroundColor)))
@@ -1581,12 +1677,12 @@ public struct SettingsView: View {
             
             // Region Selection
             VStack(alignment: .leading, spacing: 6) {
-                Text("服务区域 (Region)")
+                Text(loc("region_label"))
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.secondary)
                 
                 HStack(spacing: 12) {
-                    Picker("预设区域", selection: $inputMsRegion) {
+                    Picker(loc("preset_region"), selection: $inputMsRegion) {
                         ForEach(MicrosoftSpeechConfig.regionPresets, id: \.id) { preset in
                             Text(preset.name).tag(preset.id)
                         }
@@ -1594,7 +1690,7 @@ public struct SettingsView: View {
                     .pickerStyle(.menu)
                     .frame(width: 250)
                     
-                    TextField("或手动输入区域代码", text: $inputMsRegion)
+                    TextField(loc("manual_region_placeholder"), text: $inputMsRegion)
                         .textFieldStyle(.roundedBorder)
                 }
             }
@@ -1609,19 +1705,19 @@ public struct SettingsView: View {
                             ProgressView()
                                 .controlSize(.small)
                         }
-                        Text(isMsTesting ? "正在测试..." : "测试连接")
+                        Text(isMsTesting ? loc("btn_testing") : loc("btn_test_conn"))
                     }
                 }
                 .disabled(inputMsKey.isEmpty || inputMsRegion.isEmpty || isMsTesting)
                 
-                Button("保存配置") {
+                Button(loc("btn_save_config")) {
                     saveMicrosoftSpeechKeys()
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(inputMsKey.isEmpty || inputMsRegion.isEmpty)
                 
                 if showMsSavedAlert {
-                    Text("已保存！")
+                    Text(loc("alert_saved"))
                         .font(.system(size: 12))
                         .foregroundColor(.green)
                         .transition(.opacity)
@@ -1629,7 +1725,7 @@ public struct SettingsView: View {
                 
                 Spacer()
                 
-                Button("获取 Azure 密钥 ↗") {
+                Button(loc("btn_get_azure_key")) {
                     if let url = URL(string: "https://portal.azure.com/") {
                         NSWorkspace.shared.open(url)
                     }
@@ -1654,7 +1750,7 @@ public struct SettingsView: View {
                 Divider()
                 
                 HStack {
-                    Text("语速")
+                    Text(loc("speed_rate"))
                         .font(.system(size: 13))
                     
                     Spacer()
@@ -1675,12 +1771,12 @@ public struct SettingsView: View {
                 Divider()
                 
                 HStack {
-                    Text("选择声音")
+                    Text(loc("voice_choose_label"))
                         .font(.system(size: 13))
                     
                     Spacer()
                     
-                    Button("设置声音") {
+                    Button(loc("btn_configure_voice")) {
                         voiceSheetProvider = .microsoft
                         showVoiceSettingsSheet = true
                     }
@@ -1725,16 +1821,16 @@ public struct SettingsView: View {
                 }
                 
                 VStack(spacing: 4) {
-                    Text("Slate 即时翻译")
+                    Text(loc("about_app_name"))
                         .font(.system(size: 22, weight: .bold))
                         .foregroundColor(.primary)
                     
-                    Text("版本 1.0.0 (Build 1)")
+                    Text(loc("about_version_format", "1.0.0", "1"))
                         .font(.system(size: 13))
                         .foregroundColor(.secondary)
                 }
                 
-                Text("极简 · 高效的 macOS 翻译与语音工具")
+                Text(loc("about_tagline"))
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.secondary)
                     .padding(.top, 2)
@@ -1750,7 +1846,7 @@ public struct SettingsView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "link")
                             .font(.system(size: 11))
-                        Text("GitHub 开源主页")
+                        Text(loc("about_github"))
                             .font(.system(size: 12, weight: .medium))
                     }
                     .padding(.horizontal, 14)
@@ -1767,7 +1863,7 @@ public struct SettingsView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "arrow.triangle.2.circlepath")
                             .font(.system(size: 11))
-                        Text("检查更新")
+                        Text(loc("about_check_updates"))
                             .font(.system(size: 12, weight: .medium))
                     }
                     .padding(.horizontal, 14)
@@ -1838,56 +1934,49 @@ public struct SettingsView: View {
                     await MainActor.run {
                         self.isTesting = false
                         self.testSuccess = true
-                        self.testMessage = "系统原生翻译已内置于 macOS，完全离线运行，状态正常"
+                        self.testMessage = loc("test_msg_system")
                     }
                 case .google:
                     _ = try await GoogleTranslator.testConnection(apiKey: inputGoogleKey)
                     await MainActor.run {
                         self.isTesting = false
                         self.testSuccess = true
-                        self.testMessage = "Google 翻译测试成功！接口响应正常"
+                        self.testMessage = loc("test_msg_success", provider.title)
                     }
                 case .deepl:
                     _ = try await DeepLTranslator.testConnection(authKey: inputDeepLKey)
                     await MainActor.run {
                         self.isTesting = false
                         self.testSuccess = true
-                        self.testMessage = "DeepL 翻译测试成功！接口响应正常"
+                        self.testMessage = loc("test_msg_success", provider.title)
                     }
                 case .microsoft:
                     _ = try await MicrosoftTranslator.testConnection(apiKey: inputMsTransKey, region: inputMsTransRegion)
                     await MainActor.run {
                         self.isTesting = false
                         self.testSuccess = true
-                        self.testMessage = "微软翻译测试成功！接口响应正常"
+                        self.testMessage = loc("test_msg_success", provider.title)
                     }
                 case .baidu:
                     _ = try await BaiduTranslator.testConnection(appId: inputBaiduAppId, secretKey: inputBaiduSecretKey)
                     await MainActor.run {
                         self.isTesting = false
                         self.testSuccess = true
-                        self.testMessage = "百度翻译测试成功！接口响应正常"
-                    }
-                case .tencent:
-                    _ = try await TencentTranslator.testConnection(secretId: inputTencentSecretId, secretKey: inputTencentSecretKey, region: inputTencentRegion)
-                    await MainActor.run {
-                        self.isTesting = false
-                        self.testSuccess = true
-                        self.testMessage = "腾讯翻译君测试成功！接口响应正常"
+                        self.testMessage = loc("test_msg_success", provider.title)
                     }
                 case .alibaba:
                     _ = try await AlibabaTranslator.testConnection(accessKeyId: inputAlibabaKeyId, accessKeySecret: inputAlibabaKeySecret)
                     await MainActor.run {
                         self.isTesting = false
                         self.testSuccess = true
-                        self.testMessage = "阿里翻译测试成功！接口响应正常"
+                        self.testMessage = loc("test_msg_success", provider.title)
                     }
                 case .volcengine:
                     _ = try await VolcengineTranslator.testConnection(accessKey: inputAK, secretKey: inputSK)
                     await MainActor.run {
                         self.isTesting = false
                         self.testSuccess = true
-                        self.testMessage = "火山翻译测试成功！接口响应正常"
+                        self.testMessage = loc("test_msg_success", provider.title)
                     }
                 }
             } catch {
@@ -1912,8 +2001,6 @@ public struct SettingsView: View {
             msTransConfig.save(apiKey: inputMsTransKey, region: inputMsTransRegion)
         case .baidu:
             baiduConfig.save(appId: inputBaiduAppId, secretKey: inputBaiduSecretKey)
-        case .tencent:
-            tencentConfig.save(secretId: inputTencentSecretId, secretKey: inputTencentSecretKey, region: inputTencentRegion)
         case .alibaba:
             alibabaConfig.save(accessKeyId: inputAlibabaKeyId, accessKeySecret: inputAlibabaKeySecret)
         case .volcengine:
@@ -1943,8 +2030,6 @@ public struct SettingsView: View {
             urlString = "https://portal.azure.com/"
         case .baidu:
             urlString = "https://fanyi-api.baidu.com/manage/developer"
-        case .tencent:
-            urlString = "https://console.cloud.tencent.com/cam/capi"
         case .alibaba:
             urlString = "https://ram.console.aliyun.com/manage/ak"
         case .volcengine:
@@ -1953,6 +2038,50 @@ public struct SettingsView: View {
         
         if let url = URL(string: urlString) {
             NSWorkspace.shared.open(url)
+        }
+    }
+    
+    private func testGoogleSpeech() {
+        let key = inputGoogleSpeechKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        isGoogleSpeechTesting = true
+        googleSpeechTestSuccess = nil
+        googleSpeechTestMessage = ""
+        
+        Task {
+            do {
+                let audioData = try await GoogleSpeechSynthesizer.testConnection(apiKey: key)
+                await MainActor.run {
+                    self.isGoogleSpeechTesting = false
+                    self.googleSpeechTestSuccess = true
+                    self.googleSpeechTestMessage = loc("test_msg_speech_success")
+                    
+                    if let player = try? AVAudioPlayer(data: audioData) {
+                        player.enableRate = true
+                        player.rate = Float(speechManager.speechRate)
+                        player.prepareToPlay()
+                        self.testAudioPlayer = player
+                        player.play()
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    self.isGoogleSpeechTesting = false
+                    self.googleSpeechTestSuccess = false
+                    self.googleSpeechTestMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+    
+    private func saveGoogleSpeechKeys() {
+        googleSpeechConfig.save(apiKey: inputGoogleSpeechKey)
+        withAnimation {
+            showGoogleSpeechSavedAlert = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            withAnimation {
+                showGoogleSpeechSavedAlert = false
+            }
         }
     }
     
@@ -1971,7 +2100,7 @@ public struct SettingsView: View {
                 await MainActor.run {
                     self.isMsTesting = false
                     self.msTestSuccess = true
-                    self.msTestMessage = "连接测试成功！正在为您试听测试语音..."
+                    self.msTestMessage = loc("test_msg_speech_success")
                     
                     if let player = try? AVAudioPlayer(data: audioData) {
                         player.prepareToPlay()
@@ -2006,6 +2135,7 @@ public struct SettingsView: View {
 public struct VoiceSettingsSheetView: View {
     let provider: SpeechProvider
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var locManager = LocalizationManager.shared
     @ObservedObject private var speechManager = SpeechManager.shared
     @ObservedObject private var msSpeechConfig = MicrosoftSpeechConfig.shared
     
@@ -2027,13 +2157,13 @@ public struct VoiceSettingsSheetView: View {
     
     public var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // 顶栏标题 (匹配 Image 2 左上角标题)
-            Text("选择声音")
+            // 顶栏标题
+            Text(loc("voice_sheet_title"))
                 .font(.system(size: 14, weight: .bold))
                 .foregroundColor(.primary)
                 .padding(.top, 2)
             
-            // 10 种语言卡片容器 (圆角边框浅底，匹配 Image 2)
+            // 10 种语言卡片容器
             VStack(spacing: 0) {
                 ForEach(Array(SpeechLanguageEntry.standardLanguages.enumerated()), id: \.element.id) { index, entry in
                     if index > 0 {
@@ -2054,10 +2184,10 @@ public struct VoiceSettingsSheetView: View {
                     .stroke(Color.secondary.opacity(0.15), lineWidth: 0.8)
             )
             
-            // 底部 "好" 按钮 (匹配 Image 2 右下角)
+            // 底部 "好" 按钮
             HStack {
                 Spacer()
-                Button("好") {
+                Button(loc("voice_done_btn")) {
                     speechManager.stop()
                     dismiss()
                 }
@@ -2099,6 +2229,14 @@ public struct VoiceSettingsSheetView: View {
                 }
                 .pickerStyle(.menu)
                 .frame(maxWidth: .infinity)
+            } else if provider == .google {
+                HStack {
+                    Text("Google 多语言标准自然音色")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity)
             } else {
                 let msPresets = msVoicesMap[entry.id] ?? []
                 let selectedMs = msSpeechConfig.voice(for: entry.id)
@@ -2122,7 +2260,7 @@ public struct VoiceSettingsSheetView: View {
                 .frame(maxWidth: .infinity)
             }
             
-            Button("试听") {
+            Button(loc("voice_test_btn")) {
                 speechManager.speak(text: entry.sampleText, languageCode: entry.code)
             }
             .controlSize(.regular)
@@ -2151,6 +2289,18 @@ public final class SettingsWindowController: NSObject, NSWindowDelegate, NSToolb
         super.init()
     }
     
+    public func updateLocalization() {
+        if let items = toolbar?.items {
+            for item in items {
+                if let tab = SettingsTab(rawValue: item.itemIdentifier.rawValue) {
+                    item.label = tab.title
+                    item.paletteLabel = tab.title
+                    item.toolTip = tab.title
+                }
+            }
+        }
+    }
+    
     public func selectTab(_ tab: SettingsTab) {
         withAnimation(.easeInOut(duration: 0.15)) {
             self.selectedTab = tab
@@ -2176,9 +2326,10 @@ public final class SettingsWindowController: NSObject, NSWindowDelegate, NSToolb
         
         if let win = window {
             win.toolbarStyle = .preference
-            win.title = "Slate 设置"
+            win.title = "Slate"
             win.titleVisibility = .visible
             win.contentView = NSHostingView(rootView: SettingsView(initialTab: targetTab, initialEditingProvider: provider, initialEditingSpeechProvider: speechProvider))
+            updateLocalization()
             win.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
@@ -2194,7 +2345,7 @@ public final class SettingsWindowController: NSObject, NSWindowDelegate, NSToolb
             defer: false
         )
         win.toolbarStyle = .preference
-        win.title = "Slate 设置"
+        win.title = loc("settings_window_title")
         win.titleVisibility = .visible
         win.contentView = hostingView
         win.isReleasedWhenClosed = false

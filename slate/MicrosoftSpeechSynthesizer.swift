@@ -4,48 +4,62 @@ import SwiftUI
 
 public enum SpeechProvider: String, CaseIterable, Identifiable {
     case system = "system"
+    case google = "google"
     case microsoft = "microsoft"
     
     public var id: String { rawValue }
     
     public var title: String {
         switch self {
-        case .system: return "Apple 原生语音"
-        case .microsoft: return "微软 Azure 语音"
+        case .system: return loc("speech_system")
+        case .google: return loc("speech_google")
+        case .microsoft: return loc("speech_microsoft")
         }
     }
     
     public var shortName: String {
         switch self {
-        case .system: return "Apple 语音"
-        case .microsoft: return "微软语音"
+        case .system: return loc("speech_short_system")
+        case .google: return loc("speech_short_google")
+        case .microsoft: return loc("speech_short_microsoft")
         }
     }
     
     public var subtitle: String {
         switch self {
-        case .system: return "macOS 系统内置 · 离线神经加速发音"
-        case .microsoft: return "Azure 认知服务 · 拟真多语言神经网络人声"
+        case .system: return loc("speech_system_sub")
+        case .google: return loc("speech_google_sub")
+        case .microsoft: return loc("speech_microsoft_sub")
         }
     }
     
     public var icon: String {
         switch self {
         case .system: return "apple.logo"
+        case .google: return "globe.americas.fill"
         case .microsoft: return "waveform"
+        }
+    }
+    
+    public var assetImageName: String? {
+        switch self {
+        case .system: return "appletranslate"
+        case .google: return "google"
+        case .microsoft: return "Microsoft"
         }
     }
     
     public var accentColor: Color {
         switch self {
         case .system: return Color.primary
+        case .google: return Color(red: 0.26, green: 0.52, blue: 0.96)
         case .microsoft: return Color(red: 0.0, green: 0.47, blue: 0.83)
         }
     }
     
     public var requiresConfig: Bool {
         switch self {
-        case .system: return false
+        case .system, .google: return false
         case .microsoft: return true
         }
     }
@@ -54,7 +68,36 @@ public enum SpeechProvider: String, CaseIterable, Identifiable {
     public var isConfigured: Bool {
         switch self {
         case .system: return true
+        case .google: return true
         case .microsoft: return MicrosoftSpeechConfig.shared.isConfigured
+        }
+    }
+}
+
+public struct SpeechProviderIconView: View {
+    let provider: SpeechProvider
+    var size: CGFloat = 16
+    var isSelected: Bool = false
+    
+    public init(provider: SpeechProvider, size: CGFloat = 16, isSelected: Bool = false) {
+        self.provider = provider
+        self.size = size
+        self.isSelected = isSelected
+    }
+    
+    public var body: some View {
+        let cornerRadius = size * 0.25
+        if let asset = provider.assetImageName {
+            Image.brandIcon(asset)
+                .resizable()
+                .scaledToFit()
+                .frame(width: size, height: size)
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        } else {
+            Image(systemName: provider.icon)
+                .font(.system(size: size * 0.8))
+                .foregroundColor(isSelected ? .white : provider.accentColor)
+                .frame(width: size, height: size)
         }
     }
 }

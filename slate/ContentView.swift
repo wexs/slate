@@ -8,6 +8,7 @@ struct ContentView: View {
     @ObservedObject private var windowManager = WindowManager.shared
     @ObservedObject private var speechManager = SpeechManager.shared
     @ObservedObject private var menuBarManager = MenuBarManager.shared
+    @ObservedObject private var locManager = LocalizationManager.shared
     @FocusState private var isInputFocused: Bool
     @State private var isHoveringCopy: Bool = false
     @State private var showCopiedToast: Bool = false
@@ -98,7 +99,7 @@ struct ContentView: View {
             HStack(spacing: 6) {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundColor(.green)
-                Text(showInputCopiedToast ? "原文已复制到剪贴板" : "译文已复制到剪贴板")
+                Text(showInputCopiedToast ? loc("toast_source_copied") : loc("toast_translation_copied"))
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(isDark ? .white : Color.black.opacity(0.90))
             }
@@ -141,7 +142,7 @@ struct ContentView: View {
             TextField(
                 "",
                 text: $service.inputText,
-                prompt: Text("输入文本后回车键进行翻译")
+                prompt: Text(loc("input_placeholder"))
                     .foregroundColor(placeholderColor),
                 axis: .vertical
             )
@@ -185,13 +186,13 @@ struct ContentView: View {
                         isActive: isInputSpeaking,
                         activeColor: Color.accentColor,
                         isDark: isDark,
-                        helpText: isInputSpeaking ? "停止朗读" : "朗读原文 (右键切换引擎)"
+                        helpText: isInputSpeaking ? loc("stop_speech") : loc("read_aloud")
                     ) {
                         let langCode = AppLanguage.detectLanguage(for: service.inputText).bcp47Code ?? service.effectiveSourceLanguage.bcp47Code
                         speechManager.toggleSpeak(text: service.inputText, languageCode: langCode)
                     }
                     .contextMenu {
-                        Text("朗读引擎")
+                        Text(loc("speech_provider"))
                         Divider()
                         ForEach(SpeechProvider.allCases.filter { $0.isConfigured }) { provider in
                             Button {
@@ -206,7 +207,7 @@ struct ContentView: View {
                             }
                         }
                         Divider()
-                        Menu("朗读语速 (\(speechManager.currentRateLabel))") {
+                        Menu("\(loc("speed_rate")) (\(speechManager.currentRateLabel))") {
                             ForEach(SpeedRateOption.options) { opt in
                                 Button {
                                     speechManager.setRate(opt.rate)
@@ -224,7 +225,7 @@ struct ContentView: View {
                         Button {
                             SettingsWindowController.shared.showWindow(tab: .speech)
                         } label: {
-                            Label("语音合成设置...", systemImage: "slider.horizontal.3")
+                            Label(loc("voice_settings"), systemImage: "slider.horizontal.3")
                         }
                     }
                     
@@ -235,7 +236,7 @@ struct ContentView: View {
                         isActive: showInputCopiedToast,
                         activeColor: Color.green,
                         isDark: isDark,
-                        helpText: "复制原文"
+                        helpText: loc("copy_source")
                     ) {
                         copyInputText()
                     }
@@ -276,7 +277,7 @@ struct ContentView: View {
                     ProgressView()
                         .scaleEffect(0.7)
                         .frame(width: 28, height: 28)
-                    Text("正在翻译...")
+                    Text(loc("translating_progress"))
                         .font(.system(size: 15))
                         .foregroundColor(placeholderColor)
                 }
@@ -284,7 +285,7 @@ struct ContentView: View {
                 .padding(.vertical, 8)
             } else if let error = service.errorMessage {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("翻译提示: \(error)")
+                    Text(error)
                         .font(.system(size: 14))
                         .foregroundColor(isDark ? Color(red: 1.0, green: 0.6, blue: 0.6) : Color(red: 0.85, green: 0.25, blue: 0.25))
                         .lineLimit(nil)
@@ -296,7 +297,7 @@ struct ContentView: View {
                         } label: {
                             HStack(spacing: 5) {
                                 Image(systemName: "key.fill")
-                                Text("去配置火山翻译 API 密钥")
+                                Text(loc("get_key_link"))
                             }
                             .font(.system(size: 12, weight: .medium))
                             .foregroundColor(.white)
@@ -313,7 +314,7 @@ struct ContentView: View {
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     // Full-width Translated Text
-                    Text(service.translatedText.isEmpty ? "等待输入..." : service.translatedText)
+                    Text(service.translatedText.isEmpty ? "" : service.translatedText)
                         .font(.system(size: 17, weight: .regular))
                         .foregroundColor(primaryTextColor)
                         .lineLimit(nil)
@@ -336,13 +337,13 @@ struct ContentView: View {
                                 isActive: isTranslationSpeaking,
                                 activeColor: Color.accentColor,
                                 isDark: isDark,
-                                helpText: isTranslationSpeaking ? "停止朗读" : "朗读译文 (右键切换引擎)"
+                                helpText: isTranslationSpeaking ? loc("stop_speech") : loc("read_aloud")
                             ) {
                                 let langCode = AppLanguage.detectLanguage(for: service.translatedText).bcp47Code ?? service.effectiveTargetLanguage.bcp47Code
                                 speechManager.toggleSpeak(text: service.translatedText, languageCode: langCode)
                             }
                             .contextMenu {
-                                Text("朗读引擎")
+                                Text(loc("speech_provider"))
                                 Divider()
                                 ForEach(SpeechProvider.allCases.filter { $0.isConfigured }) { provider in
                                     Button {
@@ -357,7 +358,7 @@ struct ContentView: View {
                                     }
                                 }
                                 Divider()
-                                Menu("朗读语速 (\(speechManager.currentRateLabel))") {
+                                Menu("\(loc("speed_rate")) (\(speechManager.currentRateLabel))") {
                                     ForEach(SpeedRateOption.options) { opt in
                                         Button {
                                             speechManager.setRate(opt.rate)
@@ -375,7 +376,7 @@ struct ContentView: View {
                                 Button {
                                     SettingsWindowController.shared.showWindow(tab: .speech)
                                 } label: {
-                                    Label("语音合成设置...", systemImage: "slider.horizontal.3")
+                                    Label(loc("voice_settings"), systemImage: "slider.horizontal.3")
                                 }
                             }
                             
@@ -386,7 +387,7 @@ struct ContentView: View {
                                 isActive: showCopiedToast,
                                 activeColor: Color.green,
                                 isDark: isDark,
-                                helpText: "复制译文 (回车)"
+                                helpText: "\(loc("copy_translation")) (Enter)"
                             ) {
                                 copyTranslation()
                             }
@@ -406,7 +407,7 @@ struct ContentView: View {
     private var toolbarSection: some View {
         HStack(alignment: .center) {
             // Left Capsule: [ Auto ⌵  ⇄  英文 ⌵ ]
-            HStack(spacing: 12) {
+            HStack(spacing: 4) {
                 // Source Language Picker
                 Menu {
                     ForEach(AppLanguage.sourceLanguages) { lang in
@@ -422,7 +423,7 @@ struct ContentView: View {
                         }
                     }
                 } label: {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 5) {
                         Text(service.sourceLanguage.name)
                             .font(.system(size: 13, weight: .medium))
                         Image(systemName: "chevron.down")
@@ -430,6 +431,9 @@ struct ContentView: View {
                             .foregroundColor(secondaryTextColor)
                     }
                     .foregroundColor(isDark ? Color.white.opacity(0.85) : Color.black.opacity(0.80))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .fixedSize()
@@ -441,9 +445,11 @@ struct ContentView: View {
                     Image(systemName: "arrow.left.arrow.right")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(secondaryTextColor)
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help("切换源语言与目标语言")
+                .help(loc("swap_languages"))
                 
                 // Target Language Picker
                 Menu {
@@ -460,20 +466,23 @@ struct ContentView: View {
                         }
                     }
                 } label: {
-                    HStack(spacing: 4) {
-                        Text(service.targetLanguage.name)
+                    HStack(spacing: 5) {
+                        Text(service.effectiveTargetLanguage.name)
                             .font(.system(size: 13, weight: .medium))
                         Image(systemName: "chevron.down")
                             .font(.system(size: 9, weight: .bold))
                             .foregroundColor(secondaryTextColor)
                     }
                     .foregroundColor(isDark ? Color.white.opacity(0.85) : Color.black.opacity(0.80))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .fixedSize()
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
             .glassEffect(.clear.interactive(), in: .capsule)
             
             // Provider Picker Capsule
@@ -496,13 +505,11 @@ struct ContentView: View {
                 Button {
                     SettingsWindowController.shared.showWindow(tab: .translation)
                 } label: {
-                    Label("管理与配置翻译服务...", systemImage: "slider.horizontal.3")
+                    Label(loc("tab_translation"), systemImage: "slider.horizontal.3")
                 }
             } label: {
                 HStack(spacing: 5) {
-                    Image(systemName: service.currentProvider.icon)
-                        .font(.system(size: 11))
-                        .foregroundColor(service.currentProvider.accentColor)
+                    ProviderIconView(provider: service.currentProvider, size: 13)
                     Text(service.currentProvider.shortName)
                         .font(.system(size: 12, weight: .medium))
                     Image(systemName: "chevron.down")
@@ -512,10 +519,11 @@ struct ContentView: View {
                 .foregroundColor(isDark ? Color.white.opacity(0.88) : Color.black.opacity(0.80))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 7)
+                .contentShape(Capsule())
                 .glassEffect(.clear.interactive(), in: .capsule)
             }
             .buttonStyle(.plain)
-            .help("切换翻译服务商")
+            .help(loc("tab_translation"))
             
             Spacer()
             
@@ -524,14 +532,14 @@ struct ContentView: View {
                 Button {
                     SettingsWindowController.shared.showWindow(tab: .general)
                 } label: {
-                    Label("偏好设置... (⌘,)", systemImage: "gearshape")
+                    Label("\(loc("menu_preferences")) (⌘,)", systemImage: "gearshape")
                 }
                 
                 Button {
                     clearContentOnOpen.toggle()
                 } label: {
                     HStack {
-                        Text("不保留上次翻译内容")
+                        Text(loc("clear_on_open"))
                         if clearContentOnOpen {
                             Image(systemName: "checkmark")
                         }
@@ -543,7 +551,7 @@ struct ContentView: View {
                         windowManager.setWidthMode(.standard)
                     } label: {
                         HStack {
-                            Text("默认")
+                            Text(loc("width_standard"))
                             if windowManager.widthMode == .standard {
                                 Image(systemName: "checkmark")
                             }
@@ -554,14 +562,14 @@ struct ContentView: View {
                         windowManager.setWidthMode(.wide)
                     } label: {
                         HStack {
-                            Text("宽")
+                            Text(loc("width_wide"))
                             if windowManager.widthMode == .wide {
                                 Image(systemName: "checkmark")
                             }
                         }
                     }
                 } label: {
-                    Label("窗口宽度 (\(windowManager.widthMode.title))", systemImage: "arrow.left.and.right")
+                    Label("\(loc("window_width")) (\(windowManager.widthMode.title))", systemImage: "arrow.left.and.right")
                 }
                 
                 Divider()
@@ -570,7 +578,7 @@ struct ContentView: View {
                     pinOnTop.toggle()
                     WindowManager.shared.setAlwaysOnTop(pinOnTop)
                 } label: {
-                    Label(pinOnTop ? "取消置顶 (恢复点击别处关闭)" : "窗口置顶 (点击别处不关闭)", systemImage: pinOnTop ? "pin.slash" : "pin")
+                    Label(pinOnTop ? loc("unpin_window") : loc("pin_window"), systemImage: pinOnTop ? "pin.slash" : "pin")
                 }
                 
                 Button {
@@ -580,16 +588,12 @@ struct ContentView: View {
                         service.hasSubmitted = false
                     }
                 } label: {
-                    Label("清空输入 (Esc)", systemImage: "trash")
+                    Label(loc("clear_content"), systemImage: "trash")
                 }
                 
                 Divider()
                 
-                Button("隐藏窗口 (Esc)") {
-                    WindowManager.shared.hideWindow()
-                }
-                
-                Button("退出应用 (⌘Q)") {
+                Button("\(loc("quit_app")) (⌘Q)") {
                     NSApp.terminate(nil)
                 }
             } label: {
@@ -601,7 +605,7 @@ struct ContentView: View {
                 )
             }
             .buttonStyle(.plain)
-            .help("设置与快捷选项")
+            .help(loc("settings_menu"))
         }
         .padding(.horizontal, 20)
         .padding(.top, 4)

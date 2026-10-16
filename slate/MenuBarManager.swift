@@ -11,9 +11,9 @@ public enum MenuBarIconType: String, CaseIterable, Identifiable {
     
     public var title: String {
         switch self {
-        case .default: return "默认 (气泡)"
-        case .cat: return "小猫 (Cat)"
-        case .fish: return "小鱼 (Fish)"
+        case .default: return loc("icon_default")
+        case .cat: return loc("icon_cat")
+        case .fish: return loc("icon_fish")
         }
     }
     
@@ -85,13 +85,13 @@ public final class MenuBarManager: NSObject, ObservableObject {
         let summonSymbol = GlobalHotKeyManager.shared.currentShortcut.displaySymbol
         let selectionSymbol = GlobalHotKeyManager.shared.currentSelectionShortcut.displaySymbol
         let ocrSymbol = GlobalHotKeyManager.shared.currentOcrShortcut.displaySymbol
-        menu.addItem(NSMenuItem(title: "显示/隐藏翻译 (\(summonSymbol))", action: #selector(toggleTranslate), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "划词选中文本翻译 (\(selectionSymbol))", action: #selector(triggerSelectionTranslate), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "截图 OCR 识别翻译 (\(ocrSymbol))", action: #selector(triggerOcrTranslate), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "\(loc("menu_toggle_translate")) (\(summonSymbol))", action: #selector(toggleTranslate), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "\(loc("menu_selection_translate")) (\(selectionSymbol))", action: #selector(triggerSelectionTranslate), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "\(loc("menu_ocr_translate")) (\(ocrSymbol))", action: #selector(triggerOcrTranslate), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: "偏好设置...", action: #selector(openSettings), keyEquivalent: ","))
+        menu.addItem(NSMenuItem(title: loc("menu_preferences"), action: #selector(openSettings), keyEquivalent: ","))
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: "退出", action: #selector(quitApp), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: loc("menu_quit"), action: #selector(quitApp), keyEquivalent: "q"))
         
         for item in menu.items {
             item.target = self
