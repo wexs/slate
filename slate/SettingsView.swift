@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import AVFoundation
+import Combine
 
 public enum SettingsTab: String, CaseIterable, Identifiable {
     case general = "general"
@@ -35,9 +36,9 @@ public enum SettingsTab: String, CaseIterable, Identifiable {
 public struct SettingsView: View {
     @Environment(\.colorScheme) private var colorScheme
     private var isDark: Bool { colorScheme == .dark }
-    @Namespace private var tabAnimationNamespace
     
-    @State private var selectedTab: SettingsTab
+    @ObservedObject private var controller = SettingsWindowController.shared
+    private var selectedTab: SettingsTab { controller.selectedTab }
     @ObservedObject private var hotKeyManager = GlobalHotKeyManager.shared
     @ObservedObject private var windowManager = WindowManager.shared
     @ObservedObject private var selectionManager = SelectionTranslationManager.shared
@@ -45,6 +46,7 @@ public struct SettingsView: View {
     @ObservedObject private var msSpeechConfig = MicrosoftSpeechConfig.shared
     @ObservedObject private var menuBarManager = MenuBarManager.shared
     @ObservedObject private var translationService = TranslationService.shared
+    @ObservedObject private var launchManager = LaunchAtLoginManager.shared
     
     // Translation Configs
     @ObservedObject private var googleConfig = GoogleConfig.shared
@@ -116,15 +118,12 @@ public struct SettingsView: View {
     
     public init(initialTab: SettingsTab = .general, initialEditingProvider: TranslationProvider? = nil, initialEditingSpeechProvider: SpeechProvider? = nil) {
         if let speechProvider = initialEditingSpeechProvider {
-            _selectedTab = State(initialValue: .speech)
             _selectedSpeechProviderForEdit = State(initialValue: speechProvider)
             _selectedProviderForEdit = State(initialValue: TranslationService.shared.currentProvider)
         } else if let provider = initialEditingProvider {
-            _selectedTab = State(initialValue: .translation)
             _selectedProviderForEdit = State(initialValue: provider)
             _selectedSpeechProviderForEdit = State(initialValue: SpeechManager.shared.currentProvider)
         } else {
-            _selectedTab = State(initialValue: initialTab)
             _selectedProviderForEdit = State(initialValue: TranslationService.shared.currentProvider)
             _selectedSpeechProviderForEdit = State(initialValue: SpeechManager.shared.currentProvider)
         }
@@ -132,17 +131,13 @@ public struct SettingsView: View {
     
     public var body: some View {
         VStack(spacing: 0) {
-            topHorizontalNavBar
-            
-            Divider()
-            
             // 主内容视图
             Group {
                 switch selectedTab {
                 case .general:
                     ScrollView {
                         generalSection
-                            .padding(.vertical, 36)
+                            .padding(.vertical, 32)
                             .frame(maxWidth: .infinity, alignment: .center)
                     }
                 case .translation:
@@ -150,7 +145,7 @@ public struct SettingsView: View {
                 case .shortcuts:
                     ScrollView {
                         shortcutsSection
-                            .padding(.vertical, 36)
+                            .padding(.vertical, 32)
                             .frame(maxWidth: .infinity, alignment: .center)
                     }
                 case .speech:
@@ -158,7 +153,7 @@ public struct SettingsView: View {
                 case .about:
                     ScrollView {
                         aboutSection
-                            .padding(.vertical, 36)
+                            .padding(.vertical, 32)
                             .padding(.horizontal, 24)
                             .frame(maxWidth: .infinity, alignment: .center)
                     }
@@ -170,11 +165,9 @@ public struct SettingsView: View {
             
             bottomStatusBar
         }
-        .frame(width: 780, height: 570)
+        .frame(width: 780, height: 550)
         .background(Color(NSColor.windowBackgroundColor))
         .onAppear {
-            SettingsWindowController.shared.window?.title = selectedTab.title
-            
             // Ensure translationService reflects the stored default provider if needed
             if let savedTrans = UserDefaults.standard.string(forKey: "app_translation_provider"),
                let p = TranslationProvider(rawValue: savedTrans),
@@ -199,98 +192,8 @@ public struct SettingsView: View {
             inputMsKey = msSpeechConfig.apiKey
             inputMsRegion = msSpeechConfig.region
             selectionManager.checkAccessibilityPermission()
+            launchManager.checkStatus()
         }
-        .onChange(of: selectedTab) { oldValue, newValue in
-            SettingsWindowController.shared.window?.title = newValue.title
-        }
-    }
-    
-    // MARK: - 顶部横向导航栏 (Apple Liquid Glass 标签切换)
-    @ViewBuilder
-    private var topHorizontalNavBar: some View {
-        HStack(spacing: 8) {
-            ForEach(SettingsTab.allCases) { tab in
-                let isSelected = selectedTab == tab
-                Button {
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
-                        selectedTab = tab
-                        SettingsWindowController.shared.window?.title = tab.title
-                    }
-                } label: {
-                    VStack(spacing: 3) {
-                        Image(systemName: tab.icon)
-                            .font(.system(size: 18, weight: isSelected ? .medium : .regular))
-                            .foregroundColor(isSelected ? .accentColor : .secondary)
-                            .frame(height: 22)
-                        
-                        Text(tab.title)
-                            .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
-                            .foregroundColor(isSelected ? .primary : .secondary)
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .frame(minWidth: 64)
-                    .background {
-                        if isSelected {
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(
-                                    LinearGradient(
-                                        stops: [
-                                            .init(color: isDark ? Color.white.opacity(0.16) : Color.white.opacity(0.78), location: 0.0),
-                                            .init(color: isDark ? Color.white.opacity(0.08) : Color.white.opacity(0.48), location: 1.0)
-                                        ],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                                )
-                                .overlay(
-                                    // 顶部物理厚度菲涅尔微光
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .fill(
-                                            LinearGradient(
-                                                stops: [
-                                                    .init(color: isDark ? Color.white.opacity(0.24) : Color.white.opacity(0.45), location: 0.0),
-                                                    .init(color: isDark ? Color.white.opacity(0.05) : Color.white.opacity(0.10), location: 0.35),
-                                                    .init(color: Color.clear, location: 0.70)
-                                                ],
-                                                startPoint: .top,
-                                                endPoint: .bottom
-                                            )
-                                        )
-                                        .allowsHitTesting(false)
-                                )
-                                .overlay(
-                                    // 晶体折射高光外边框
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .stroke(
-                                            LinearGradient(
-                                                stops: [
-                                                    .init(color: isDark ? Color.white.opacity(0.40) : Color.white.opacity(0.85), location: 0.0),
-                                                    .init(color: isDark ? Color.white.opacity(0.12) : Color.white.opacity(0.30), location: 1.0)
-                                                ],
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            ),
-                                            lineWidth: 0.75
-                                        )
-                                )
-                                .shadow(
-                                    color: Color.black.opacity(isDark ? 0.28 : 0.08),
-                                    radius: 5,
-                                    x: 0,
-                                    y: 2
-                                )
-                                .matchedGeometryEffect(id: "activeSettingsTabGlass", in: tabAnimationNamespace)
-                        }
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity)
-        .background(Color(NSColor.windowBackgroundColor))
     }
     
     // MARK: - 底部状态栏
@@ -484,6 +387,33 @@ public struct SettingsView: View {
                             .padding(.leading, 18)
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                }
+                .frame(width: rightColumnWidth, alignment: .leading)
+            }
+            
+            // 组间留白
+            Spacer().frame(height: 6)
+            
+            // 4. 系统启动设置
+            HStack(alignment: .top, spacing: 14) {
+                Text("系统启动：")
+                    .font(.system(size: 13))
+                    .foregroundColor(.primary)
+                    .frame(width: labelWidth, alignment: .trailing)
+                    .padding(.top, 2)
+                
+                VStack(alignment: .leading, spacing: 3) {
+                    Toggle("在登录时启动 Slate", isOn: Binding(
+                        get: { launchManager.isEnabled },
+                        set: { launchManager.setEnabled($0) }
+                    ))
+                    .toggleStyle(.checkbox)
+                    
+                    Text("开机并登录 macOS 时自动在后台静默启动，随时响应快捷键呼出")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 18)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(width: rightColumnWidth, alignment: .leading)
             }
@@ -2105,18 +2035,29 @@ public struct SettingsView: View {
 // MARK: - Custom Settings Window
 @MainActor
 public final class SettingsWindow: NSWindow {
-    override public var canBecomeMain: Bool { false }
+    override public var canBecomeMain: Bool { true }
+    override public var canBecomeKey: Bool { true }
 }
 
 // MARK: - Settings Window Controller
 @MainActor
-public final class SettingsWindowController: NSObject, NSWindowDelegate {
+public final class SettingsWindowController: NSObject, NSWindowDelegate, NSToolbarDelegate, ObservableObject {
     public static let shared = SettingsWindowController()
     
     public var window: SettingsWindow?
+    private var toolbar: NSToolbar?
+    
+    @Published public var selectedTab: SettingsTab = .general
     
     override private init() {
         super.init()
+    }
+    
+    public func selectTab(_ tab: SettingsTab) {
+        withAnimation(.easeInOut(duration: 0.15)) {
+            self.selectedTab = tab
+        }
+        toolbar?.selectedItemIdentifier = NSToolbarItem.Identifier(tab.rawValue)
     }
     
     public func showWindow(tab: SettingsTab = .general, provider: TranslationProvider? = nil, speechProvider: SpeechProvider? = nil) {
@@ -2124,32 +2065,61 @@ public final class SettingsWindowController: NSObject, NSWindowDelegate {
             WindowManager.shared.hideWindow()
         }
         
+        let targetTab: SettingsTab
+        if speechProvider != nil {
+            targetTab = .speech
+        } else if provider != nil {
+            targetTab = .translation
+        } else {
+            targetTab = tab
+        }
+        
+        selectTab(targetTab)
+        
         if let win = window {
-            win.title = tab.title
-            win.contentView = NSHostingView(rootView: SettingsView(initialTab: tab, initialEditingProvider: provider, initialEditingSpeechProvider: speechProvider))
+            win.toolbarStyle = .preference
+            win.title = "Slate 设置"
+            win.titleVisibility = .visible
+            win.contentView = NSHostingView(rootView: SettingsView(initialTab: targetTab, initialEditingProvider: provider, initialEditingSpeechProvider: speechProvider))
             win.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
         
-        let settingsView = SettingsView(initialTab: tab, initialEditingProvider: provider, initialEditingSpeechProvider: speechProvider)
+        let settingsView = SettingsView(initialTab: targetTab, initialEditingProvider: provider, initialEditingSpeechProvider: speechProvider)
         let hostingView = NSHostingView(rootView: settingsView)
         
         let win = SettingsWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 780, height: 570),
+            contentRect: NSRect(x: 0, y: 0, width: 780, height: 550),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
         )
-        win.title = tab.title
+        win.toolbarStyle = .preference
+        win.title = "Slate 设置"
         win.titleVisibility = .visible
-        win.titlebarAppearsTransparent = true
         win.contentView = hostingView
         win.isReleasedWhenClosed = false
         win.center()
         win.delegate = self
         
+        // Native macOS Settings Toolbar
+        let tb = NSToolbar(identifier: "SlateSettingsToolbar")
+        tb.delegate = self
+        tb.allowsUserCustomization = false
+        tb.autosavesConfiguration = false
+        tb.displayMode = .iconAndLabel
+        tb.showsBaselineSeparator = true
+        tb.selectedItemIdentifier = NSToolbarItem.Identifier(targetTab.rawValue)
+        
+        if #available(macOS 13.0, *) {
+            tb.centeredItemIdentifiers = Set(SettingsTab.allCases.map { NSToolbarItem.Identifier($0.rawValue) })
+        }
+        
+        win.toolbar = tb
+        self.toolbar = tb
         self.window = win
+        
         win.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -2157,12 +2127,51 @@ public final class SettingsWindowController: NSObject, NSWindowDelegate {
     public func closeWindow() {
         window?.orderOut(nil)
         window = nil
+        toolbar = nil
     }
     
     nonisolated public func windowWillClose(_ notification: Notification) {
         Task { @MainActor in
             self.window = nil
+            self.toolbar = nil
         }
+    }
+    
+    // MARK: - NSToolbarDelegate
+    
+    public func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        return [.flexibleSpace] + SettingsTab.allCases.map { NSToolbarItem.Identifier($0.rawValue) }
+    }
+    
+    public func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        return [.flexibleSpace] + SettingsTab.allCases.map { NSToolbarItem.Identifier($0.rawValue) } + [.flexibleSpace]
+    }
+    
+    public func toolbarSelectableItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        return SettingsTab.allCases.map { NSToolbarItem.Identifier($0.rawValue) }
+    }
+    
+    public func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+        if itemIdentifier == .flexibleSpace {
+            return NSToolbarItem(itemIdentifier: itemIdentifier)
+        }
+        
+        guard let tab = SettingsTab(rawValue: itemIdentifier.rawValue) else { return nil }
+        
+        let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+        item.label = tab.title
+        item.paletteLabel = tab.title
+        item.toolTip = tab.title
+        let config = NSImage.SymbolConfiguration(pointSize: 19, weight: .regular)
+        item.image = NSImage(systemSymbolName: tab.icon, accessibilityDescription: tab.title)?.withSymbolConfiguration(config)
+        item.target = self
+        item.action = #selector(toolbarItemClicked(_:))
+        return item
+    }
+    
+    @objc private func toolbarItemClicked(_ sender: NSToolbarItem) {
+        guard let tab = SettingsTab(rawValue: sender.itemIdentifier.rawValue) else { return }
+        selectTab(tab)
     }
 }
 
