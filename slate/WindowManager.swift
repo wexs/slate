@@ -225,7 +225,7 @@ final class WindowManager: NSObject, NSWindowDelegate, ObservableObject {
         }
         
         if let text = text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
                 NotificationCenter.default.post(
                     name: NSNotification.Name("SetTranslationInputAndTranslate"),
                     object: nil,
