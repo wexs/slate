@@ -1,6 +1,5 @@
 import Foundation
 import SwiftUI
-import Translation
 import NaturalLanguage
 import Combine
 
@@ -76,11 +75,6 @@ final class TranslationService: ObservableObject {
     @Published var currentProvider: TranslationProvider {
         didSet {
             UserDefaults.standard.set(currentProvider.rawValue, forKey: "app_translation_provider")
-            if currentProvider != .system {
-                configuration = nil
-            } else {
-                setupConfiguration()
-            }
             let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty && (hasSubmitted || !translatedText.isEmpty) {
                 submitTranslation()
@@ -88,67 +82,7 @@ final class TranslationService: ObservableObject {
         }
     }
     
-    @Published var configuration: TranslationSession.Configuration?
-    
     private var translationTask: Task<Void, Never>?
-    
-    private struct LanguageState {
-        let source: AppLanguage
-        let target: AppLanguage
-        let primary: AppLanguage
-        let secondary: AppLanguage
-    }
-    
-    private var previousLanguageState: LanguageState?
-    private var isUserSwitchingLanguage: Bool = false
-    
-    private func recordLanguageStateForRollback() {
-        if previousLanguageState == nil {
-            previousLanguageState = LanguageState(
-                source: sourceLanguage,
-                target: targetLanguage,
-                primary: primaryLanguage,
-                secondary: secondaryLanguage
-            )
-        }
-        isUserSwitchingLanguage = true
-    }
-    
-    func rollbackToPreviousLanguage() {
-        let previous = self.previousLanguageState
-        self.previousLanguageState = nil
-        self.isUserSwitchingLanguage = false
-        
-        if let previous = previous {
-            self.sourceLanguage = previous.source
-            self.targetLanguage = previous.target
-            self.primaryLanguage = previous.primary
-            self.secondaryLanguage = previous.secondary
-        } else {
-            if self.targetLanguage.id != "zh-Hans" && self.targetLanguage.id != "en" && self.targetLanguage.id != "auto" {
-                self.targetLanguage = self.primaryLanguage.isChinese ? .english : .simplifiedChinese
-            }
-            if self.sourceLanguage.id != "zh-Hans" && self.sourceLanguage.id != "en" && self.sourceLanguage.id != "auto" {
-                self.sourceLanguage = .auto
-            }
-            if self.primaryLanguage.id != "zh-Hans" && self.primaryLanguage.id != "en" {
-                self.primaryLanguage = .simplifiedChinese
-            }
-            if self.secondaryLanguage.id != "zh-Hans" && self.secondaryLanguage.id != "en" {
-                self.secondaryLanguage = .english
-            }
-        }
-        
-        self.detectedSourceLanguage = nil
-        self.isTranslating = false
-        self.errorMessage = nil
-        self.setupConfiguration()
-        
-        let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if hasSubmitted && !trimmed.isEmpty {
-            submitTranslation()
-        }
-    }
     
     init() {
         let savedProvider = UserDefaults.standard.string(forKey: "app_translation_provider") ?? "system"
@@ -164,10 +98,6 @@ final class TranslationService: ObservableObject {
         
         self.sourceLanguage = .auto
         self.targetLanguage = .autoSelect
-        
-        if self.currentProvider == .system {
-            setupConfiguration()
-        }
     }
     
     func setProvider(_ provider: TranslationProvider) {
@@ -175,107 +105,9 @@ final class TranslationService: ObservableObject {
         currentProvider = provider
     }
     
-    func setupConfiguration() {
-        guard currentProvider == .system else {
-            if self.configuration != nil {
-                self.configuration = nil
-            }
-            return
-        }
-        
-        let pair = resolveLanguagePair(for: inputText)
-        if let config = self.configuration,
-           config.source == pair.source,
-           config.target == pair.target {
-            return
-        }
-        
-        self.configuration = TranslationSession.Configuration(
-            source: pair.source,
-            target: pair.target
-        )
-    }
-    
-    func handleSession(_ session: TranslationSession) async {
-        guard currentProvider == .system else { return }
-        
-        let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard hasSubmitted && !trimmed.isEmpty else {
-            let pair = resolveLanguagePair(for: inputText)
-            let availability = LanguageAvailability()
-            let initialStatus = await availability.status(from: pair.source, to: pair.target)
-            
-            // 1. If already installed, quietly prewarm the model
-            if initialStatus == .installed {
-                self.previousLanguageState = nil
-                self.isUserSwitchingLanguage = false
-                try? await session.prepareTranslation()
-                return
-            }
-            
-            // 2. If NOT installed:
-            // ONLY trigger download sheet if user explicitly clicked dropdown to switch language!
-            // When opening window, focusing, or typing, NEVER pop up the download sheet!
-            if self.isUserSwitchingLanguage {
-                self.isUserSwitchingLanguage = false
-                do {
-                    try await session.prepareTranslation()
-                    let status = await availability.status(from: pair.source, to: pair.target)
-                    if status == .installed {
-                        self.previousLanguageState = nil
-                    } else {
-                        // User dismissed or clicked Done without downloading
-                        rollbackToPreviousLanguage()
-                    }
-                } catch {
-                    // User cancelled or download failed
-                    rollbackToPreviousLanguage()
-                }
-            } else {
-                // Not a user-initiated switch, but current language is uninstalled:
-                // Immediately roll back to a known-installed language without prompting!
-                rollbackToPreviousLanguage()
-            }
-            return
-        }
-        
-        do {
-            let response = try await session.translate(trimmed)
-            guard !Task.isCancelled else { return }
-            
-            self.translatedText = response.targetText
-            self.lastTranslatedInput = trimmed
-            self.isTranslating = false
-            self.errorMessage = nil
-            self.previousLanguageState = nil
-            self.isUserSwitchingLanguage = false
-        } catch is CancellationError {
-            // Task cancelled (e.g. view disappeared or user cancelled download prompt)
-            if self.previousLanguageState != nil {
-                rollbackToPreviousLanguage()
-            }
-            return
-        } catch {
-            guard !Task.isCancelled else { return }
-            self.isTranslating = false
-            if self.previousLanguageState != nil {
-                rollbackToPreviousLanguage()
-            } else {
-                let nsError = error as NSError
-                if nsError.domain == NSCocoaErrorDomain && nsError.code == NSUserCancelledError {
-                    rollbackToPreviousLanguage()
-                } else if case TranslationError.notInstalled = error {
-                    rollbackToPreviousLanguage()
-                } else {
-                    self.errorMessage = error.localizedDescription
-                }
-            }
-        }
-    }
-    
     public func invalidateActiveSession() {
         self.translationTask?.cancel()
-        if self.isTranslating && self.currentProvider == .system {
+        if self.isTranslating {
             self.isTranslating = false
         }
     }
@@ -294,29 +126,23 @@ final class TranslationService: ObservableObject {
     
     public func setPrimaryLanguage(_ lang: AppLanguage) {
         guard lang != primaryLanguage else { return }
-        recordLanguageStateForRollback()
         primaryLanguage = lang
         if secondaryLanguage.id == lang.id {
             secondaryLanguage = (lang.id == "en" ? .simplifiedChinese : .english)
         }
         if hasSubmitted && !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             submitTranslation()
-        } else {
-            setupConfiguration()
         }
     }
     
     public func setSecondaryLanguage(_ lang: AppLanguage) {
         guard lang != secondaryLanguage else { return }
-        recordLanguageStateForRollback()
         secondaryLanguage = lang
         if primaryLanguage.id == lang.id {
             primaryLanguage = (lang.id == "zh-Hans" ? .english : .simplifiedChinese)
         }
         if hasSubmitted && !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             submitTranslation()
-        } else {
-            setupConfiguration()
         }
     }
     
@@ -325,9 +151,6 @@ final class TranslationService: ObservableObject {
         guard !trimmed.isEmpty else {
             if detectedSourceLanguage != nil {
                 detectedSourceLanguage = nil
-                if currentProvider == .system {
-                    setupConfiguration()
-                }
             }
             return
         }
@@ -335,10 +158,6 @@ final class TranslationService: ObservableObject {
         let detected = AppLanguage.detectLanguage(for: trimmed)
         guard detected != self.detectedSourceLanguage else { return }
         self.detectedSourceLanguage = detected
-        
-        if currentProvider == .system {
-            setupConfiguration()
-        }
     }
     
     func clearContent() {
@@ -352,10 +171,6 @@ final class TranslationService: ObservableObject {
         hasSubmitted = false
         isTranslating = false
         errorMessage = nil
-        isUserSwitchingLanguage = false
-        if currentProvider == .system {
-            setupConfiguration()
-        }
     }
     
     func submitTranslation(onAlreadyTranslatedCopy: (() -> Void)? = nil) {
@@ -403,16 +218,12 @@ final class TranslationService: ObservableObject {
             self.isTranslating = true
             self.errorMessage = nil
             
-            if self.currentProvider == .system {
-                self.triggerSystemTranslation(for: trimmed)
-            } else {
-                self.performRemoteTranslation(for: trimmed, provider: self.currentProvider)
-            }
+            self.performTranslation(for: trimmed, provider: self.currentProvider)
         }
     }
     
-    // MARK: - Remote Translation Dispatch
-    private func performRemoteTranslation(for text: String, provider: TranslationProvider) {
+    // MARK: - Translation Dispatch
+    private func performTranslation(for text: String, provider: TranslationProvider) {
         translationTask?.cancel()
         
         // Check credentials if required
@@ -428,7 +239,11 @@ final class TranslationService: ObservableObject {
                 let result: String
                 switch provider {
                 case .system:
-                    return
+                    result = try await BuiltinOnlineTranslator.translate(
+                        text: text,
+                        source: self.effectiveSourceLanguage,
+                        target: self.effectiveTargetLanguage
+                    )
                 case .google:
                     let pair = self.resolveGoogleLanguagePair(for: text)
                     result = try await GoogleTranslator.translate(
@@ -453,6 +268,15 @@ final class TranslationService: ObservableObject {
                         targetCode: pair.target,
                         apiKey: MicrosoftConfig.shared.apiKey,
                         region: MicrosoftConfig.shared.region
+                    )
+                case .papago:
+                    let pair = self.resolvePapagoLanguagePair(for: text)
+                    result = try await PapagoTranslator.translate(
+                        text: text,
+                        sourceCode: pair.source,
+                        targetCode: pair.target,
+                        clientId: PapagoConfig.shared.clientId,
+                        clientSecret: PapagoConfig.shared.clientSecret
                     )
                 case .baidu:
                     let pair = self.resolveBaiduLanguagePair(for: text)
@@ -516,13 +340,18 @@ final class TranslationService: ObservableObject {
         return (sourceCode, targetCode)
     }
     
+    public func resolvePapagoLanguagePair(for text: String) -> (source: String, target: String) {
+        let sourceCode = (sourceLanguage.id == "auto" ? "auto" : (sourceLanguage.papagoCode ?? "auto"))
+        let targetCode = effectiveTargetLanguage.papagoCode ?? (primaryLanguage.papagoCode ?? "ko")
+        return (sourceCode, targetCode)
+    }
+    
     public func resolveBaiduLanguagePair(for text: String) -> (source: String, target: String) {
         let sourceCode = (sourceLanguage.id == "auto" ? "auto" : (sourceLanguage.baiduCode ?? "auto"))
         let targetCode = effectiveTargetLanguage.baiduCode ?? "zh"
         return (sourceCode, targetCode)
     }
     
-
     public func resolveAlibabaLanguagePair(for text: String) -> (source: String, target: String) {
         let sourceCode = (sourceLanguage.id == "auto" ? "auto" : (sourceLanguage.alibabaCode ?? "auto"))
         let targetCode = effectiveTargetLanguage.alibabaCode ?? "zh"
@@ -535,25 +364,7 @@ final class TranslationService: ObservableObject {
         return (sourceCode, targetCode)
     }
     
-    // MARK: - Apple System Translation
-    private func triggerSystemTranslation(for text: String) {
-        guard currentProvider == .system else { return }
-        let pair = resolveLanguagePair(for: text)
-        
-        if let config = configuration,
-           config.source == pair.source,
-           config.target == pair.target {
-            configuration?.invalidate()
-        } else {
-            configuration = TranslationSession.Configuration(
-                source: pair.source,
-                target: pair.target
-            )
-        }
-    }
-    
     func swapLanguages() {
-        recordLanguageStateForRollback()
         if sourceLanguage.id == "auto" && targetLanguage.id == "auto" {
             let curSource = effectiveSourceLanguage
             let curTarget = effectiveTargetLanguage
@@ -578,54 +389,28 @@ final class TranslationService: ObservableObject {
         
         if hasSubmitted && !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             submitTranslation()
-        } else {
-            setupConfiguration()
         }
     }
     
     func setSource(_ lang: AppLanguage) {
         guard lang != sourceLanguage else { return }
-        recordLanguageStateForRollback()
         sourceLanguage = lang
         if sourceLanguage.id != "auto" && sourceLanguage == targetLanguage {
             targetLanguage = (sourceLanguage.id == primaryLanguage.id ? secondaryLanguage : primaryLanguage)
         }
         if hasSubmitted && !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             submitTranslation()
-        } else {
-            setupConfiguration()
         }
     }
     
     func setTarget(_ lang: AppLanguage) {
         guard lang != targetLanguage else { return }
-        recordLanguageStateForRollback()
         targetLanguage = lang
         if sourceLanguage.id != "auto" && sourceLanguage == targetLanguage {
             sourceLanguage = (targetLanguage.id == primaryLanguage.id ? secondaryLanguage : primaryLanguage)
         }
         if hasSubmitted && !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             submitTranslation()
-        } else {
-            setupConfiguration()
         }
-    }
-    
-    func resolveLanguagePair(for text: String) -> (source: Locale.Language, target: Locale.Language) {
-        let effSource = effectiveSourceLanguage
-        let sourceLocale = effSource.localeLanguage ?? Locale.Language(identifier: "en")
-        let effTarget = effectiveTargetLanguage
-        var targetLocale = effTarget.localeLanguage ?? (primaryLanguage.localeLanguage ?? Locale.Language(identifier: "zh-Hans"))
-        
-        // Ensure source and target are not identical
-        if sourceLocale.languageCode == targetLocale.languageCode {
-            if sourceLocale.languageCode?.identifier == primaryLanguage.localeLanguage?.languageCode?.identifier {
-                targetLocale = secondaryLanguage.localeLanguage ?? Locale.Language(identifier: "en")
-            } else {
-                targetLocale = primaryLanguage.localeLanguage ?? Locale.Language(identifier: "zh-Hans")
-            }
-        }
-        
-        return (sourceLocale, targetLocale)
     }
 }

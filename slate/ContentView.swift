@@ -1,5 +1,4 @@
 import SwiftUI
-import Translation
 import AppKit
 
 struct ContentView: View {
@@ -9,10 +8,13 @@ struct ContentView: View {
     @ObservedObject private var speechManager = SpeechManager.shared
     @ObservedObject private var menuBarManager = MenuBarManager.shared
     @ObservedObject private var locManager = LocalizationManager.shared
+    @ObservedObject private var fontSizeManager = FontSizeManager.shared
     @FocusState private var isInputFocused: Bool
     @State private var isHoveringCopy: Bool = false
     @State private var showCopiedToast: Bool = false
     @State private var showInputCopiedToast: Bool = false
+    @State private var showFontSizeToast: Bool = false
+    @State private var hideFontSizeToastTask: Task<Void, Never>? = nil
     @State private var showSettingsMenu: Bool = false
     @State private var pinOnTop: Bool = false
     @State private var scrollContentHeight: CGFloat = 0
@@ -97,11 +99,19 @@ struct ContentView: View {
         VStack {
             Spacer()
             HStack(spacing: 6) {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
-                Text(showInputCopiedToast ? loc("toast_source_copied") : loc("toast_translation_copied"))
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(isDark ? .white : Color.black.opacity(0.90))
+                if showFontSizeToast {
+                    Image(systemName: "textformat.size")
+                        .foregroundColor(Color.accentColor)
+                    Text(loc("toast_font_size", "\(Int(fontSizeManager.currentSize))"))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(isDark ? .white : Color.black.opacity(0.90))
+                } else {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                    Text(showInputCopiedToast ? loc("toast_source_copied") : loc("toast_translation_copied"))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(isDark ? .white : Color.black.opacity(0.90))
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
@@ -147,9 +157,9 @@ struct ContentView: View {
                 axis: .vertical
             )
             .textFieldStyle(.plain)
-            .font(.system(size: 17, weight: .regular))
+            .font(.system(size: fontSizeManager.currentSize, weight: .regular))
             .foregroundColor(primaryTextColor)
-            .lineSpacing(4)
+            .lineSpacing(max(3, fontSizeManager.currentSize * 0.22))
             .lineLimit(nil)
             .frame(maxWidth: .infinity, alignment: .leading)
             .focused($isInputFocused)
@@ -316,12 +326,12 @@ struct ContentView: View {
                     // Full-width Translated Text
                     ZStack(alignment: .topTrailing) {
                         Text(service.translatedText.isEmpty ? "" : service.translatedText)
-                            .font(.system(size: 17, weight: .regular))
+                            .font(.system(size: fontSizeManager.currentSize, weight: .regular))
                             .foregroundColor(primaryTextColor)
                             .opacity(service.isTranslating ? 0.45 : 1.0)
                             .animation(.easeInOut(duration: 0.15), value: service.isTranslating)
                             .lineLimit(nil)
-                            .lineSpacing(4)
+                            .lineSpacing(max(3, fontSizeManager.currentSize * 0.22))
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(Rectangle())
@@ -642,10 +652,8 @@ struct ContentView: View {
                             Color.clear
                                 .task(id: geo.size.height) {
                                     let h = geo.size.height
-                                    if h > 0 && abs(scrollContentHeight - h) > 0.5 {
-                                        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                                            scrollContentHeight = h
-                                        }
+                                    if h > 0 && abs(scrollContentHeight - h) > 1.0 {
+                                        scrollContentHeight = h
                                     }
                                 }
                         }
@@ -688,8 +696,8 @@ struct ContentView: View {
             )
             .zIndex(1)
             
-            // Copied Toast Indicator (层级置顶，确保绝不被大玻璃卡片遮挡)
-            if showCopiedToast || showInputCopiedToast {
+            // Toast Indicator (层级置顶，确保绝不被大玻璃卡片遮挡)
+            if showCopiedToast || showInputCopiedToast || showFontSizeToast {
                 copiedToastView
                     .zIndex(100)
             }
@@ -706,10 +714,19 @@ struct ContentView: View {
             WindowManager.shared.updateWindowHeight(newHeight: height)
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isExpanded)
-        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: showCopiedToast || showInputCopiedToast)
-        // Bind to Apple Translation framework session
-        .translationTask(service.configuration) { session in
-            await service.handleSession(session)
+        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: showCopiedToast || showInputCopiedToast || showFontSizeToast)
+        .onChange(of: fontSizeManager.currentSize) { _, _ in
+            hideFontSizeToastTask?.cancel()
+            withAnimation(.spring(response: 0.22, dampingFraction: 0.8)) {
+                showFontSizeToast = true
+            }
+            hideFontSizeToastTask = Task {
+                try? await Task.sleep(nanoseconds: 900_000_000)
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeOut(duration: 0.2)) {
+                    showFontSizeToast = false
+                }
+            }
         }
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {

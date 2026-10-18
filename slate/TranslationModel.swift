@@ -318,6 +318,26 @@ public struct AppLanguage: Identifiable, Hashable {
         }
     }
     
+    public var papagoCode: String? {
+        switch id {
+        case "auto": return "auto"
+        case "zh-Hans": return "zh-CN"
+        case "zh-Hant": return "zh-TW"
+        case "en": return "en"
+        case "ja": return "ja"
+        case "ko": return "ko"
+        case "fr": return "fr"
+        case "de": return "de"
+        case "es": return "es"
+        case "it": return "it"
+        case "pt": return "pt"
+        case "ru": return "ru"
+        case "th": return "th"
+        case "vi": return "vi"
+        default: return nil
+        }
+    }
+    
     public var bcp47Code: String? {
         switch id {
         case "auto": return nil
@@ -345,6 +365,7 @@ public enum TranslationProvider: String, CaseIterable, Identifiable {
     case google = "google"
     case deepl = "deepl"
     case microsoft = "microsoft"
+    case papago = "papago"
     case baidu = "baidu"
     case alibaba = "alibaba"
     case volcengine = "volcengine"
@@ -357,6 +378,7 @@ public enum TranslationProvider: String, CaseIterable, Identifiable {
         case .google: return loc("provider_google")
         case .deepl: return loc("provider_deepl")
         case .microsoft: return loc("provider_microsoft")
+        case .papago: return loc("provider_papago")
         case .baidu: return loc("provider_baidu")
         case .alibaba: return loc("provider_alibaba")
         case .volcengine: return loc("provider_volcengine")
@@ -369,6 +391,7 @@ public enum TranslationProvider: String, CaseIterable, Identifiable {
         case .google: return loc("provider_short_google")
         case .deepl: return loc("provider_short_deepl")
         case .microsoft: return loc("provider_short_microsoft")
+        case .papago: return loc("provider_short_papago")
         case .baidu: return loc("provider_short_baidu")
         case .alibaba: return loc("provider_short_alibaba")
         case .volcengine: return loc("provider_short_volcengine")
@@ -381,6 +404,7 @@ public enum TranslationProvider: String, CaseIterable, Identifiable {
         case .google: return loc("provider_google_sub")
         case .deepl: return loc("provider_deepl_sub")
         case .microsoft: return loc("provider_microsoft_sub")
+        case .papago: return loc("provider_papago_sub")
         case .baidu: return loc("provider_baidu_sub")
         case .alibaba: return loc("provider_alibaba_sub")
         case .volcengine: return loc("provider_volcengine_sub")
@@ -389,10 +413,11 @@ public enum TranslationProvider: String, CaseIterable, Identifiable {
     
     public var icon: String {
         switch self {
-        case .system: return "apple.logo"
+        case .system: return "bolt.horizontal.fill"
         case .google: return "globe.americas.fill"
         case .deepl: return "text.book.closed.fill"
         case .microsoft: return "square.grid.2x2.fill"
+        case .papago: return "bird.fill"
         case .baidu: return "pawprint.fill"
         case .alibaba: return "cube.box.fill"
         case .volcengine: return "flame.fill"
@@ -401,10 +426,11 @@ public enum TranslationProvider: String, CaseIterable, Identifiable {
     
     public var assetImageName: String? {
         switch self {
-        case .system: return "appletranslate"
+        case .system: return nil
         case .google: return "google"
         case .deepl: return "deepl"
         case .microsoft: return "Microsoft"
+        case .papago: return "papago"
         case .baidu: return "baidu"
         case .alibaba: return "alibaba"
         case .volcengine: return "huoshan"
@@ -413,10 +439,11 @@ public enum TranslationProvider: String, CaseIterable, Identifiable {
     
     public var accentColor: Color {
         switch self {
-        case .system: return Color.primary
+        case .system: return Color(red: 0.12, green: 0.53, blue: 0.90)
         case .google: return Color(red: 0.26, green: 0.52, blue: 0.96)
         case .deepl: return Color(red: 0.10, green: 0.35, blue: 0.60)
         case .microsoft: return Color(red: 0.0, green: 0.47, blue: 0.83)
+        case .papago: return Color(red: 0.08, green: 0.77, blue: 0.42)
         case .baidu: return Color(red: 0.16, green: 0.28, blue: 0.94)
         case .alibaba: return Color(red: 1.0, green: 0.42, blue: 0.0)
         case .volcengine: return Color(red: 0.94, green: 0.25, blue: 0.26)
@@ -441,6 +468,8 @@ public enum TranslationProvider: String, CaseIterable, Identifiable {
             return DeepLConfig.shared.isConfigured
         case .microsoft:
             return MicrosoftConfig.shared.isConfigured
+        case .papago:
+            return PapagoConfig.shared.isConfigured
         case .baidu:
             return BaiduConfig.shared.isConfigured
         case .alibaba:

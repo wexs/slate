@@ -51,11 +51,13 @@ public struct SettingsView: View {
     @ObservedObject private var menuBarManager = MenuBarManager.shared
     @ObservedObject private var translationService = TranslationService.shared
     @ObservedObject private var launchManager = LaunchAtLoginManager.shared
+    @ObservedObject private var fontSizeManager = FontSizeManager.shared
     
     // Translation Configs
     @ObservedObject private var googleConfig = GoogleConfig.shared
     @ObservedObject private var deeplConfig = DeepLConfig.shared
     @ObservedObject private var msTransConfig = MicrosoftConfig.shared
+    @ObservedObject private var papagoConfig = PapagoConfig.shared
     @ObservedObject private var baiduConfig = BaiduConfig.shared
     @ObservedObject private var alibabaConfig = AlibabaConfig.shared
     @ObservedObject private var volcConfig = VolcengineConfig.shared
@@ -79,6 +81,11 @@ public struct SettingsView: View {
     @State private var inputMsTransKey: String = ""
     @State private var inputMsTransRegion: String = "global"
     @State private var isMsTransKeyVisible: Bool = false
+    
+    // Papago Inputs
+    @State private var inputPapagoClientId: String = ""
+    @State private var inputPapagoClientSecret: String = ""
+    @State private var isPapagoClientSecretVisible: Bool = false
     
     // Baidu Inputs
     @State private var inputBaiduAppId: String = ""
@@ -197,6 +204,8 @@ public struct SettingsView: View {
             inputDeepLKey = deeplConfig.authKey
             inputMsTransKey = msTransConfig.apiKey
             inputMsTransRegion = msTransConfig.region
+            inputPapagoClientId = papagoConfig.clientId
+            inputPapagoClientSecret = papagoConfig.clientSecret
             inputBaiduAppId = baiduConfig.appId
             inputBaiduSecretKey = baiduConfig.secretKey
             inputAlibabaKeyId = alibabaConfig.accessKeyId
@@ -476,7 +485,59 @@ public struct SettingsView: View {
             // 组间留白
             Spacer().frame(height: 6)
             
-            // 3. 状态栏图标组
+            // 3. 翻译字号大小组 (14 / 16 / 18 / 20 / 22 pt)
+            HStack(alignment: .top, spacing: 14) {
+                Text(loc("app_font_size"))
+                    .font(.system(size: 13))
+                    .foregroundColor(.primary)
+                    .frame(width: labelWidth, alignment: .trailing)
+                    .padding(.top, 4)
+                
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 12) {
+                        Slider(
+                            value: Binding(
+                                get: { Double(fontSizeManager.stepIndex) },
+                                set: { fontSizeManager.setStepIndex(Int($0.rounded())) }
+                            ),
+                            in: 0...4,
+                            step: 1
+                        )
+                        .frame(width: controlWidth)
+                        
+                        Text("\(Int(fontSizeManager.currentSize)) pt")
+                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.primary)
+                            .frame(width: 48, alignment: .leading)
+                    }
+                    
+                    // 档位刻度标注
+                    HStack {
+                        ForEach(FontSizeManager.availableSizes, id: \.self) { size in
+                            Text("\(Int(size))")
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundColor(fontSizeManager.currentSize == size ? Color.accentColor : Color.secondary.opacity(0.7))
+                                .fontWeight(fontSizeManager.currentSize == size ? .bold : .regular)
+                            if size != FontSizeManager.availableSizes.last {
+                                Spacer()
+                            }
+                        }
+                    }
+                    .frame(width: controlWidth)
+                    .padding(.horizontal, 4)
+                    
+                    Text(loc("app_font_size_desc"))
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(width: rightColumnWidth, alignment: .leading)
+            }
+            
+            // 组间留白
+            Spacer().frame(height: 6)
+            
+            // 4. 状态栏图标组
             HStack(alignment: .top, spacing: 14) {
                 Text(loc("menu_bar_icon"))
                     .font(.system(size: 13))
@@ -833,6 +894,8 @@ public struct SettingsView: View {
                 deeplDetailForm
             case .microsoft:
                 microsoftDetailForm
+            case .papago:
+                papagoDetailForm
             case .baidu:
                 baiduDetailForm
             case .alibaba:
@@ -906,7 +969,7 @@ public struct SettingsView: View {
     @ViewBuilder
     private var systemDetailForm: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label(loc("system_form_title"), systemImage: "internaldrive")
+            Label(loc("system_form_title"), systemImage: "bolt.horizontal.fill")
                 .font(.system(size: 13, weight: .semibold))
             Text(loc("system_form_desc"))
                 .font(.system(size: 12))
@@ -1069,6 +1132,72 @@ public struct SettingsView: View {
                 TextField(loc("ms_trans_region_placeholder"), text: $inputMsTransRegion)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 12, design: .monospaced))
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var papagoDetailForm: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(loc("papago_form_title"))
+                    .font(.system(size: 13, weight: .semibold))
+                Text(loc("papago_form_desc"))
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+            }
+            
+            VStack(alignment: .leading, spacing: 6) {
+                Text(loc("papago_client_id_label"))
+                    .font(.system(size: 12, weight: .medium))
+                
+                HStack(spacing: 8) {
+                    TextField(loc("papago_client_id_placeholder"), text: $inputPapagoClientId)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 12, design: .monospaced))
+                    
+                    Button {
+                        if let paste = NSPasteboard.general.string(forType: .string) {
+                            inputPapagoClientId = paste.trimmingCharacters(in: .whitespacesAndNewlines)
+                        }
+                    } label: {
+                        Image(systemName: "doc.on.clipboard")
+                    }
+                    .help(loc("btn_paste_clipboard"))
+                }
+            }
+            
+            VStack(alignment: .leading, spacing: 6) {
+                Text(loc("papago_client_secret_label"))
+                    .font(.system(size: 12, weight: .medium))
+                
+                HStack(spacing: 8) {
+                    if isPapagoClientSecretVisible {
+                        TextField(loc("papago_client_secret_placeholder"), text: $inputPapagoClientSecret)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 12, design: .monospaced))
+                    } else {
+                        SecureField(loc("papago_client_secret_placeholder"), text: $inputPapagoClientSecret)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 12, design: .monospaced))
+                    }
+                    
+                    Button {
+                        isPapagoClientSecretVisible.toggle()
+                    } label: {
+                        Image(systemName: isPapagoClientSecretVisible ? "eye.slash" : "eye")
+                    }
+                    .help(isPapagoClientSecretVisible ? loc("btn_hide_key") : loc("btn_show_key"))
+                    
+                    Button {
+                        if let paste = NSPasteboard.general.string(forType: .string) {
+                            inputPapagoClientSecret = paste.trimmingCharacters(in: .whitespacesAndNewlines)
+                        }
+                    } label: {
+                        Image(systemName: "doc.on.clipboard")
+                    }
+                    .help(loc("btn_paste_clipboard"))
+                }
             }
         }
     }
@@ -1956,6 +2085,7 @@ public struct SettingsView: View {
             do {
                 switch provider {
                 case .system:
+                    _ = try await BuiltinOnlineTranslator.testConnection()
                     await MainActor.run {
                         self.isTesting = false
                         self.testSuccess = true
@@ -1977,6 +2107,13 @@ public struct SettingsView: View {
                     }
                 case .microsoft:
                     _ = try await MicrosoftTranslator.testConnection(apiKey: inputMsTransKey, region: inputMsTransRegion)
+                    await MainActor.run {
+                        self.isTesting = false
+                        self.testSuccess = true
+                        self.testMessage = loc("test_msg_success", provider.title)
+                    }
+                case .papago:
+                    _ = try await PapagoTranslator.testConnection(clientId: inputPapagoClientId, clientSecret: inputPapagoClientSecret)
                     await MainActor.run {
                         self.isTesting = false
                         self.testSuccess = true
@@ -2024,6 +2161,8 @@ public struct SettingsView: View {
             deeplConfig.save(authKey: inputDeepLKey)
         case .microsoft:
             msTransConfig.save(apiKey: inputMsTransKey, region: inputMsTransRegion)
+        case .papago:
+            papagoConfig.save(clientId: inputPapagoClientId, clientSecret: inputPapagoClientSecret)
         case .baidu:
             baiduConfig.save(appId: inputBaiduAppId, secretKey: inputBaiduSecretKey)
         case .alibaba:
@@ -2053,6 +2192,8 @@ public struct SettingsView: View {
             urlString = "https://www.deepl.com/your-account/keys"
         case .microsoft:
             urlString = "https://portal.azure.com/"
+        case .papago:
+            urlString = "https://console.ncloud.com/papago-service/dashboard"
         case .baidu:
             urlString = "https://fanyi-api.baidu.com/manage/developer"
         case .alibaba:

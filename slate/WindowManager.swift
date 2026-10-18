@@ -157,26 +157,48 @@ final class WindowManager: NSObject, NSWindowDelegate, ObservableObject {
         panel.setFrame(NSRect(x: x, y: y, width: panelWidth, height: panelHeight), display: true)
     }
     
+    private var pendingHeightUpdate: CGFloat?
+    private var isHeightUpdateScheduled: Bool = false
+    
     func updateWindowHeight(newHeight: CGFloat) {
-        guard let panel = window, newHeight > 20 else { return }
+        guard window != nil, newHeight > 20 else { return }
+        pendingHeightUpdate = newHeight
+        
+        guard !isHeightUpdateScheduled else { return }
+        isHeightUpdateScheduled = true
+        
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.isHeightUpdateScheduled = false
+            guard let target = self.pendingHeightUpdate else { return }
+            self.pendingHeightUpdate = nil
+            self.applyWindowHeight(target)
+        }
+    }
+    
+    private func applyWindowHeight(_ newHeight: CGFloat) {
+        guard let panel = window, panel.isVisible, newHeight > 20 else { return }
         let currentFrame = panel.frame
         let targetHeight = newHeight + WindowLayout.totalVerticalPadding
         let targetWidth = widthMode.windowWidth
         
-        guard let screen = NSScreen.main else { return }
+        guard let screen = panel.screen ?? NSScreen.main else { return }
         let screenRect = screen.visibleFrame
         
         // 动态计算防溢出安全高度：确保卡片底部始终留出至少 20pt 间隙，绝不沉入 Dock 或遮挡屏幕外
         let maxAllowedHeight = max(WindowLayout.initialWindowHeight, currentFrame.maxY - screenRect.origin.y - 20)
         let safeHeight = min(targetHeight, maxAllowedHeight)
         
-        if abs(currentFrame.height - safeHeight) < 2 && abs(currentFrame.width - targetWidth) < 2 { return }
+        if abs(currentFrame.height - safeHeight) < 1.0 && abs(currentFrame.width - targetWidth) < 1.0 { return }
         
         let targetX = screenRect.origin.x + (screenRect.width - targetWidth) / 2
         let newY = currentFrame.maxY - safeHeight
         let newFrame = NSRect(x: targetX, y: newY, width: targetWidth, height: safeHeight)
         
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
         panel.setFrame(newFrame, display: true, animate: false)
+        CATransaction.commit()
     }
     
     var isClearContentOnOpenEnabled: Bool {
@@ -338,10 +360,34 @@ final class WindowManager: NSObject, NSWindowDelegate, ObservableObject {
     
     private func setupKeyboardMonitors() {
         localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self = self else { return event }
+            
             if event.keyCode == 53 { // ESC key
-                self?.handleEscapeKey()
+                self.handleEscapeKey()
                 return nil
             }
+            
+            // Cmd + / Cmd - zoom shortcuts when translation window is key
+            if let panel = self.window, panel.isVisible, panel.isKeyWindow {
+                let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+                if flags.contains(.command) && !flags.contains(.control) && !flags.contains(.option) {
+                    let chars = event.charactersIgnoringModifiers ?? ""
+                    // KeyCode 24 is '=' / '+' on ANSI keyboard; 69 is Keypad '+'
+                    // KeyCode 27 is '-' / '_' on ANSI keyboard; 78 is Keypad '-'
+                    // KeyCode 29 is '0'
+                    if event.keyCode == 24 || event.keyCode == 69 || chars == "+" || chars == "=" {
+                        FontSizeManager.shared.increase()
+                        return nil
+                    } else if event.keyCode == 27 || event.keyCode == 78 || chars == "-" {
+                        FontSizeManager.shared.decrease()
+                        return nil
+                    } else if event.keyCode == 29 || chars == "0" {
+                        FontSizeManager.shared.resetToDefault()
+                        return nil
+                    }
+                }
+            }
+            
             return event
         }
     }
