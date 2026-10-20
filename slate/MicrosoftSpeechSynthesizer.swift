@@ -102,7 +102,7 @@ public struct SpeechProviderIconView: View {
     }
 }
 
-public struct MicrosoftVoicePreset: Identifiable, Hashable {
+public struct MicrosoftVoicePreset: Identifiable, Hashable, Codable {
     public let id: String
     public let name: String
     public let desc: String
@@ -113,6 +113,27 @@ public struct MicrosoftVoicePreset: Identifiable, Hashable {
         self.name = name
         self.desc = desc
         self.locale = locale
+    }
+}
+
+// Azure TTS /voices/list API response item
+private struct AzureVoiceItem: Decodable {
+    let shortName: String      // e.g. "zh-CN-XiaoxiaoNeural"
+    let localName: String      // e.g. "晓晓"
+    let displayName: String    // e.g. "Xiaoxiao"
+    let locale: String         // e.g. "zh-CN"
+    let gender: String         // "Female" / "Male"
+    let voiceType: String      // "Neural" / "Standard"
+    let status: String?        // "GA" / "Preview"
+    
+    enum CodingKeys: String, CodingKey {
+        case shortName = "ShortName"
+        case localName = "LocalName"
+        case displayName = "DisplayName"
+        case locale = "Locale"
+        case gender = "Gender"
+        case voiceType = "VoiceType"
+        case status = "Status"
     }
 }
 
@@ -149,6 +170,18 @@ public final class MicrosoftSpeechConfig: ObservableObject {
             UserDefaults.standard.set(englishVoice, forKey: "ms_speech_en_voice")
         }
     }
+    
+    /// Dynamically fetched voices from Azure API, grouped by langId. Empty = use built-in presets.
+    @Published public var dynamicVoices: [String: [MicrosoftVoicePreset]] = [:]
+    /// Whether a voice list fetch is in progress
+    @Published public var isFetchingVoices: Bool = false
+    /// Last fetch error message, nil if last fetch succeeded or never run
+    @Published public var fetchError: String? = nil
+    /// Timestamp of last successful fetch
+    @Published public var lastFetchedAt: Date? = nil
+    
+    /// True when we have a live dynamic list from Azure
+    public var hasDynamicVoices: Bool { !dynamicVoices.isEmpty }
     
     public var isConfigured: Bool {
         !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
@@ -347,6 +380,47 @@ public final class MicrosoftSpeechConfig: ObservableObject {
         }
         self.chineseVoice = UserDefaults.standard.string(forKey: "ms_speech_zh_voice") ?? "zh-CN-XiaoxiaoNeural"
         self.englishVoice = UserDefaults.standard.string(forKey: "ms_speech_en_voice") ?? "en-US-JennyNeural"
+        
+        // Restore cached dynamic voices
+        if let data = UserDefaults.standard.data(forKey: "ms_dynamic_voices_cache"),
+           let decoded = try? JSONDecoder().decode([String: [MicrosoftVoicePreset]].self, from: data) {
+            self.dynamicVoices = decoded
+        }
+        if let ts = UserDefaults.standard.object(forKey: "ms_dynamic_voices_timestamp") as? Date {
+            self.lastFetchedAt = ts
+        }
+    }
+    
+    /// Persist dynamic voices to UserDefaults so they survive app restarts
+    func persistDynamicVoices() {
+        if let data = try? JSONEncoder().encode(dynamicVoices) {
+            UserDefaults.standard.set(data, forKey: "ms_dynamic_voices_cache")
+        }
+        UserDefaults.standard.set(lastFetchedAt, forKey: "ms_dynamic_voices_timestamp")
+    }
+    
+    /// Maps an Azure locale string to our internal langId
+    public static func langId(for locale: String) -> String? {
+        let l = locale.lowercased()
+        if l.hasPrefix("zh-cn") || l.hasPrefix("zh-hans") { return "zh-Hans" }
+        if l.hasPrefix("zh-tw") || l.hasPrefix("zh-hk") || l.hasPrefix("zh-hant") { return "zh-Hant" }
+        if l.hasPrefix("en-") || l == "en" { return "en" }
+        if l.hasPrefix("ja-") || l == "ja" { return "ja" }
+        if l.hasPrefix("ko-") || l == "ko" { return "ko" }
+        if l.hasPrefix("fr-") || l == "fr" { return "fr" }
+        if l.hasPrefix("ru-") || l == "ru" { return "ru" }
+        if l.hasPrefix("de-") || l == "de" { return "de" }
+        if l.hasPrefix("es-") || l == "es" { return "es" }
+        if l.hasPrefix("it-") || l == "it" { return "it" }
+        return nil
+    }
+    
+    /// Returns dynamic voices if available, otherwise falls back to built-in presets
+    public func voices(for langId: String) -> [MicrosoftVoicePreset] {
+        if let dynamic = dynamicVoices[langId], !dynamic.isEmpty {
+            return dynamic
+        }
+        return Self.voicePresets(for: langId)
     }
     
     public static func defaultVoice(for langId: String) -> String {
@@ -603,5 +677,93 @@ public struct MicrosoftSpeechSynthesizer {
             apiKey: apiKey,
             region: region
         )
+    }
+    
+    /// Fetches the full voice list from Azure, updates MicrosoftSpeechConfig.shared.dynamicVoices.
+    /// Filters to only Neural/GA voices for the 10 supported language groups.
+    @MainActor
+    public static func fetchVoiceList(apiKey: String, region: String) async throws {
+        let config = MicrosoftSpeechConfig.shared
+        let cleanKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanRegion = region.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        
+        guard !cleanKey.isEmpty, !cleanRegion.isEmpty else {
+            throw SpeechError.missingCredentials
+        }
+        guard let url = URL(string: "https://\(cleanRegion).tts.speech.microsoft.com/cognitiveservices/voices/list") else {
+            throw SpeechError.invalidEndpoint
+        }
+        
+        config.isFetchingVoices = true
+        config.fetchError = nil
+        defer { config.isFetchingVoices = false }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue(cleanKey, forHTTPHeaderField: "Ocp-Apim-Subscription-Key")
+        request.setValue("Slate-macOS", forHTTPHeaderField: "User-Agent")
+        request.timeoutInterval = 15.0
+        
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            config.fetchError = "网络请求失败: \(error.localizedDescription)"
+            throw SpeechError.networkError(error)
+        }
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            let err = SpeechError.networkError(NSError(domain: "Network", code: -1))
+            config.fetchError = err.errorDescription
+            throw err
+        }
+        guard httpResponse.statusCode == 200 else {
+            if httpResponse.statusCode == 401 {
+                config.fetchError = SpeechError.unauthorized.errorDescription
+                throw SpeechError.unauthorized
+            }
+            let msg = String(data: data, encoding: .utf8) ?? "HTTP \(httpResponse.statusCode)"
+            let err = SpeechError.httpError(statusCode: httpResponse.statusCode, message: msg)
+            config.fetchError = err.errorDescription
+            throw err
+        }
+        
+        let items = try JSONDecoder().decode([AzureVoiceItem].self, from: data)
+        
+        // Group into our 10 lang buckets, keeping only Neural voices
+        var grouped: [String: [MicrosoftVoicePreset]] = [:]
+        for item in items {
+            guard item.voiceType == "Neural" else { continue }
+            guard let langId = MicrosoftSpeechConfig.langId(for: item.locale) else { continue }
+            
+            // Display name: prefer LocalName if non-ASCII (Chinese/Japanese/Korean), else DisplayName
+            let hasNonASCII = item.localName.unicodeScalars.contains { $0.value > 127 }
+            let displayName = hasNonASCII ? "\(item.localName) (\(item.displayName))" : item.displayName
+            let genderDesc = item.gender == "Female" ? "女声" : "男声"
+            
+            let preset = MicrosoftVoicePreset(
+                id: item.shortName,
+                name: displayName,
+                desc: "\(genderDesc) · \(item.locale)",
+                locale: item.locale
+            )
+            grouped[langId, default: []].append(preset)
+        }
+        
+        // Sort: female-first within each group, then alphabetically by name
+        for langId in grouped.keys {
+            grouped[langId]?.sort {
+                let aF = $0.desc.hasPrefix("女")
+                let bF = $1.desc.hasPrefix("女")
+                if aF != bF { return aF }
+                return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+            }
+        }
+        
+        config.dynamicVoices = grouped
+        config.lastFetchedAt = Date()
+        config.fetchError = nil
+        config.persistDynamicVoices()
     }
 }

@@ -2304,27 +2304,31 @@ public struct VoiceSettingsSheetView: View {
     
     // 预载缓存数据，避免在动画和重绘过程中重复调用系统 IPC 引起卡顿
     private let systemVoicesMap: [String: [SystemVoiceOption]]
-    private let msVoicesMap: [String: [MicrosoftVoicePreset]]
     
     public init(provider: SpeechProvider) {
         self.provider = provider
         var sysMap: [String: [SystemVoiceOption]] = [:]
-        var msMap: [String: [MicrosoftVoicePreset]] = [:]
         for entry in SpeechLanguageEntry.standardLanguages {
             sysMap[entry.id] = SpeechManager.shared.availableSystemVoices(for: entry)
-            msMap[entry.id] = MicrosoftSpeechConfig.voicePresets(for: entry.id)
         }
         self.systemVoicesMap = sysMap
-        self.msVoicesMap = msMap
     }
     
     public var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // 顶栏标题
-            Text(loc("voice_sheet_title"))
-                .font(.system(size: 14, weight: .bold))
-                .foregroundColor(.primary)
-                .padding(.top, 2)
+            // 顶栏标题 + 刷新状态行（仅微软引擎显示）
+            HStack(alignment: .center) {
+                Text(loc("voice_sheet_title"))
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.primary)
+                
+                Spacer()
+                
+                if provider == .microsoft {
+                    microsoftFetchStatusBar
+                }
+            }
+            .padding(.top, 2)
             
             // 10 种语言卡片容器
             VStack(spacing: 0) {
@@ -2362,8 +2366,58 @@ public struct VoiceSettingsSheetView: View {
         }
         .padding(20)
         .frame(width: 520)
+        .onAppear {
+            if provider == .microsoft {
+                triggerFetchIfNeeded()
+            }
+        }
     }
     
+    // MARK: - Microsoft 拉取状态栏
+    @ViewBuilder
+    private var microsoftFetchStatusBar: some View {
+        HStack(spacing: 6) {
+            if msSpeechConfig.isFetchingVoices {
+                ProgressView()
+                    .controlSize(.small)
+                Text("正在从 Azure 获取语音列表…")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            } else if let err = msSpeechConfig.fetchError {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundColor(.orange)
+                    .font(.system(size: 11))
+                Text(err)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                refreshButton
+            } else if msSpeechConfig.hasDynamicVoices {
+                if let ts = msSpeechConfig.lastFetchedAt {
+                    Text("已同步 · \(ts.formatted(date: .omitted, time: .shortened))")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+                refreshButton
+            } else {
+                refreshButton
+            }
+        }
+    }
+    
+    private var refreshButton: some View {
+        Button {
+            fetchVoices()
+        } label: {
+            Image(systemName: "arrow.clockwise")
+                .font(.system(size: 12))
+        }
+        .buttonStyle(.borderless)
+        .disabled(msSpeechConfig.isFetchingVoices)
+        .help("从 Azure 重新获取最新语音列表")
+    }
+    
+    // MARK: - 语言行
     @ViewBuilder
     private func languageRow(_ entry: SpeechLanguageEntry) -> some View {
         HStack(spacing: 12) {
@@ -2401,32 +2455,63 @@ public struct VoiceSettingsSheetView: View {
                 }
                 .frame(maxWidth: .infinity)
             } else {
-                let msPresets = msVoicesMap[entry.id] ?? []
+                // Microsoft: 优先使用动态拉取的语音列表
+                let msPresets = msSpeechConfig.voices(for: entry.id)
                 let selectedMs = msSpeechConfig.voice(for: entry.id)
                 
-                Picker("", selection: Binding(
-                    get: {
-                        if msPresets.contains(where: { $0.id == selectedMs }) {
-                            return selectedMs
+                if msSpeechConfig.isFetchingVoices && !msSpeechConfig.hasDynamicVoices {
+                    // 首次拉取中，显示加载占位
+                    HStack {
+                        Text("正在加载…")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity)
+                } else {
+                    Picker("", selection: Binding(
+                        get: {
+                            if msPresets.contains(where: { $0.id == selectedMs }) {
+                                return selectedMs
+                            }
+                            return msPresets.first?.id ?? ""
+                        },
+                        set: { newVoice in
+                            msSpeechConfig.setVoice(newVoice, for: entry.id)
                         }
-                        return msPresets.first?.id ?? ""
-                    },
-                    set: { newVoice in
-                        msSpeechConfig.setVoice(newVoice, for: entry.id)
+                    )) {
+                        ForEach(msPresets) { p in
+                            Text("\(p.name) \(p.locale)").tag(p.id)
+                        }
                     }
-                )) {
-                    ForEach(msPresets) { p in
-                        Text("\(p.name) \(p.locale)").tag(p.id)
-                    }
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: .infinity)
                 }
-                .pickerStyle(.menu)
-                .frame(maxWidth: .infinity)
             }
             
             Button(loc("voice_test_btn")) {
                 speechManager.speak(text: entry.sampleText, languageCode: entry.code, as: provider)
             }
             .controlSize(.regular)
+        }
+    }
+    
+    // MARK: - 拉取逻辑
+    private func triggerFetchIfNeeded() {
+        guard msSpeechConfig.isConfigured else { return }
+        // 如果已有动态列表且在 1 小时内拉取过，不重复拉取
+        if let ts = msSpeechConfig.lastFetchedAt,
+           msSpeechConfig.hasDynamicVoices,
+           Date().timeIntervalSince(ts) < 3600 { return }
+        fetchVoices()
+    }
+    
+    private func fetchVoices() {
+        let key = msSpeechConfig.apiKey
+        let region = msSpeechConfig.region
+        guard !key.isEmpty, !region.isEmpty else { return }
+        Task {
+            try? await MicrosoftSpeechSynthesizer.fetchVoiceList(apiKey: key, region: region)
         }
     }
 }
