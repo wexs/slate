@@ -125,8 +125,7 @@ public struct SettingsView: View {
     @State private var msTestSuccess: Bool? = nil
     @State private var msTestMessage: String = ""
     @State private var showMsSavedAlert: Bool = false
-    @State private var showVoiceSettingsSheet: Bool = false
-    @State private var voiceSheetProvider: SpeechProvider = .system
+    @State private var voiceSheetItem: SpeechProvider? = nil
     
     @AppStorage("app_translation_provider") private var selectedProvider: String = TranslationProvider.system.rawValue
     @AppStorage("app_clear_content_on_open") private var clearContentOnOpen: Bool = true
@@ -189,8 +188,8 @@ public struct SettingsView: View {
         }
         .frame(width: 780, height: 550)
         .background(Color(NSColor.windowBackgroundColor))
-        .sheet(isPresented: $showVoiceSettingsSheet) {
-            VoiceSettingsSheetView(provider: voiceSheetProvider)
+        .sheet(item: $voiceSheetItem) { provider in
+            VoiceSettingsSheetView(provider: provider)
         }
         .onAppear {
             // Ensure translationService reflects the stored default provider if needed
@@ -1618,8 +1617,7 @@ public struct SettingsView: View {
                 Spacer()
                 
                 Button(loc("btn_configure_voice")) {
-                    voiceSheetProvider = .system
-                    showVoiceSettingsSheet = true
+                    voiceSheetItem = .system
                 }
                 .controlSize(.regular)
             }
@@ -1931,8 +1929,7 @@ public struct SettingsView: View {
                     Spacer()
                     
                     Button(loc("btn_configure_voice")) {
-                        voiceSheetProvider = .microsoft
-                        showVoiceSettingsSheet = true
+                        voiceSheetItem = .microsoft
                     }
                     .controlSize(.regular)
                 }
@@ -2427,7 +2424,7 @@ public struct VoiceSettingsSheetView: View {
             }
             
             Button(loc("voice_test_btn")) {
-                speechManager.speak(text: entry.sampleText, languageCode: entry.code)
+                speechManager.speak(text: entry.sampleText, languageCode: entry.code, as: provider)
             }
             .controlSize(.regular)
         }

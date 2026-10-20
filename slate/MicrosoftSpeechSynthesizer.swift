@@ -171,67 +171,163 @@ public final class MicrosoftSpeechConfig: ObservableObject {
         switch langId {
         case "zh-Hans":
             return [
-                MicrosoftVoicePreset(id: "zh-CN-XiaoxiaoNeural", name: "晓晓", desc: "女声 · 温暖亲切 · 推荐", locale: "zh-CN"),
-                MicrosoftVoicePreset(id: "zh-CN-YunxiNeural", name: "云希", desc: "男声 · 阳光自然 · 推荐", locale: "zh-CN"),
-                MicrosoftVoicePreset(id: "zh-CN-YunjianNeural", name: "云健", desc: "男声 · 影视解说 · 沉稳", locale: "zh-CN"),
-                MicrosoftVoicePreset(id: "zh-CN-XiaoyiNeural", name: "晓伊", desc: "女声 · 温柔甜美", locale: "zh-CN"),
-                MicrosoftVoicePreset(id: "zh-CN-YunyangNeural", name: "云扬", desc: "男声 · 专业播音", locale: "zh-CN"),
-                MicrosoftVoicePreset(id: "zh-CN-liaoning-XiaobeiNeural", name: "晓北", desc: "女声 · 东北话特色", locale: "zh-CN")
+                MicrosoftVoicePreset(id: "zh-CN-XiaoxiaoNeural",            name: "晓晓",   desc: "女声 · 温暖亲切 · 推荐",   locale: "zh-CN"),
+                MicrosoftVoicePreset(id: "zh-CN-YunxiNeural",               name: "云希",   desc: "男声 · 阳光自然 · 推荐",   locale: "zh-CN"),
+                MicrosoftVoicePreset(id: "zh-CN-YunjianNeural",              name: "云健",   desc: "男声 · 影视解说 · 沉稳",   locale: "zh-CN"),
+                MicrosoftVoicePreset(id: "zh-CN-XiaoyiNeural",              name: "晓伊",   desc: "女声 · 温柔甜美",          locale: "zh-CN"),
+                MicrosoftVoicePreset(id: "zh-CN-YunyangNeural",             name: "云扬",   desc: "男声 · 专业播音",          locale: "zh-CN"),
+                MicrosoftVoicePreset(id: "zh-CN-XiaochenNeural",            name: "晓辰",   desc: "女声 · 活泼清新",          locale: "zh-CN"),
+                MicrosoftVoicePreset(id: "zh-CN-XiaohanNeural",             name: "晓涵",   desc: "女声 · 成熟稳重",          locale: "zh-CN"),
+                MicrosoftVoicePreset(id: "zh-CN-XiaomengNeural",            name: "晓梦",   desc: "女声 · 梦幻轻盈",          locale: "zh-CN"),
+                MicrosoftVoicePreset(id: "zh-CN-XiaomoNeural",              name: "晓墨",   desc: "女声 · 知性大气",          locale: "zh-CN"),
+                MicrosoftVoicePreset(id: "zh-CN-XiaoqiuNeural",             name: "晓秋",   desc: "女声 · 沉稳端庄",          locale: "zh-CN"),
+                MicrosoftVoicePreset(id: "zh-CN-XiaoruiNeural",             name: "晓睿",   desc: "女声 · 老年感 · 叙述",     locale: "zh-CN"),
+                MicrosoftVoicePreset(id: "zh-CN-XiaoshuangNeural",          name: "晓双",   desc: "女声 · 儿童风格",          locale: "zh-CN"),
+                MicrosoftVoicePreset(id: "zh-CN-XiaoxuanNeural",            name: "晓萱",   desc: "女声 · 轻松愉悦",          locale: "zh-CN"),
+                MicrosoftVoicePreset(id: "zh-CN-XiaoyanNeural",             name: "晓颜",   desc: "女声 · 职场专业",          locale: "zh-CN"),
+                MicrosoftVoicePreset(id: "zh-CN-XiaozheNeural",             name: "晓哲",   desc: "男声 · 自信果断",          locale: "zh-CN"),
+                MicrosoftVoicePreset(id: "zh-CN-YunjieNeural",              name: "云杰",   desc: "男声 · 激昂有力",          locale: "zh-CN"),
+                MicrosoftVoicePreset(id: "zh-CN-YunkanNeural",              name: "云侃",   desc: "男声 · 浑厚磁性",          locale: "zh-CN"),
+                MicrosoftVoicePreset(id: "zh-CN-YunzeNeural",               name: "云泽",   desc: "男声 · 沉着冷静",          locale: "zh-CN"),
+                MicrosoftVoicePreset(id: "zh-CN-liaoning-XiaobeiNeural",    name: "晓北",   desc: "女声 · 东北话特色",         locale: "zh-CN"),
+                MicrosoftVoicePreset(id: "zh-CN-shaanxi-XiaoniNeural",      name: "晓妮",   desc: "女声 · 陕西话特色",         locale: "zh-CN"),
             ]
         case "en":
             return [
-                MicrosoftVoicePreset(id: "en-US-JennyNeural", name: "Jenny", desc: "美音女声 · 自然亲切 · 推荐", locale: "en-US"),
-                MicrosoftVoicePreset(id: "en-US-GuyNeural", name: "Guy", desc: "美音男声 · 沉稳自信 · 推荐", locale: "en-US"),
-                MicrosoftVoicePreset(id: "en-US-AriaNeural", name: "Aria", desc: "美音女声 · 专业新闻", locale: "en-US"),
-                MicrosoftVoicePreset(id: "en-GB-SoniaNeural", name: "Sonia", desc: "英音女声 · 优雅纯正", locale: "en-GB"),
-                MicrosoftVoicePreset(id: "en-AU-NatashaNeural", name: "Natasha", desc: "澳音女声 · 清新自然", locale: "en-AU")
+                MicrosoftVoicePreset(id: "en-US-JennyNeural",      name: "Jenny",      desc: "美音女声 · 自然亲切 · 推荐", locale: "en-US"),
+                MicrosoftVoicePreset(id: "en-US-GuyNeural",         name: "Guy",        desc: "美音男声 · 沉稳自信 · 推荐", locale: "en-US"),
+                MicrosoftVoicePreset(id: "en-US-AriaNeural",        name: "Aria",       desc: "美音女声 · 专业新闻",        locale: "en-US"),
+                MicrosoftVoicePreset(id: "en-US-DavisNeural",       name: "Davis",      desc: "美音男声 · 随和自然",        locale: "en-US"),
+                MicrosoftVoicePreset(id: "en-US-AnaNeural",         name: "Ana",        desc: "美音女声 · 儿童音色",        locale: "en-US"),
+                MicrosoftVoicePreset(id: "en-US-AmberNeural",       name: "Amber",      desc: "美音女声 · 温柔平稳",        locale: "en-US"),
+                MicrosoftVoicePreset(id: "en-US-AshleyNeural",      name: "Ashley",     desc: "美音女声 · 轻快活泼",        locale: "en-US"),
+                MicrosoftVoicePreset(id: "en-US-BrandonNeural",     name: "Brandon",    desc: "美音男声 · 青春活力",        locale: "en-US"),
+                MicrosoftVoicePreset(id: "en-US-ChristopherNeural", name: "Christopher",desc: "美音男声 · 稳重专业",        locale: "en-US"),
+                MicrosoftVoicePreset(id: "en-US-CoraNeural",        name: "Cora",       desc: "美音女声 · 清晰流畅",        locale: "en-US"),
+                MicrosoftVoicePreset(id: "en-US-ElizabethNeural",   name: "Elizabeth",  desc: "美音女声 · 优雅成熟",        locale: "en-US"),
+                MicrosoftVoicePreset(id: "en-US-EricNeural",        name: "Eric",       desc: "美音男声 · 亲切随和",        locale: "en-US"),
+                MicrosoftVoicePreset(id: "en-US-JacobNeural",       name: "Jacob",      desc: "美音男声 · 年轻自信",        locale: "en-US"),
+                MicrosoftVoicePreset(id: "en-US-JaneNeural",        name: "Jane",       desc: "美音女声 · 友善温暖",        locale: "en-US"),
+                MicrosoftVoicePreset(id: "en-US-JasonNeural",       name: "Jason",      desc: "美音男声 · 成熟稳健",        locale: "en-US"),
+                MicrosoftVoicePreset(id: "en-US-MichelleNeural",    name: "Michelle",   desc: "美音女声 · 专业清晰",        locale: "en-US"),
+                MicrosoftVoicePreset(id: "en-US-MonicaNeural",      name: "Monica",     desc: "美音女声 · 亲和力强",        locale: "en-US"),
+                MicrosoftVoicePreset(id: "en-US-NancyNeural",       name: "Nancy",      desc: "美音女声 · 活泼开朗",        locale: "en-US"),
+                MicrosoftVoicePreset(id: "en-US-RogerNeural",       name: "Roger",      desc: "美音男声 · 自信干练",        locale: "en-US"),
+                MicrosoftVoicePreset(id: "en-US-SaraNeural",        name: "Sara",       desc: "美音女声 · 清新自然",        locale: "en-US"),
+                MicrosoftVoicePreset(id: "en-US-SteffanNeural",     name: "Steffan",    desc: "美音男声 · 庄重正式",        locale: "en-US"),
+                MicrosoftVoicePreset(id: "en-US-TonyNeural",        name: "Tony",       desc: "美音男声 · 阳光开朗",        locale: "en-US"),
+                MicrosoftVoicePreset(id: "en-GB-SoniaNeural",       name: "Sonia",      desc: "英音女声 · 优雅纯正",        locale: "en-GB"),
+                MicrosoftVoicePreset(id: "en-GB-RyanNeural",        name: "Ryan",       desc: "英音男声 · 沉稳清晰",        locale: "en-GB"),
+                MicrosoftVoicePreset(id: "en-GB-LibbyNeural",       name: "Libby",      desc: "英音女声 · 亲切自然",        locale: "en-GB"),
+                MicrosoftVoicePreset(id: "en-AU-NatashaNeural",     name: "Natasha",    desc: "澳音女声 · 清新自然",        locale: "en-AU"),
+                MicrosoftVoicePreset(id: "en-AU-WilliamNeural",     name: "William",    desc: "澳音男声 · 阳光开朗",        locale: "en-AU"),
+                MicrosoftVoicePreset(id: "en-CA-ClaraNeural",       name: "Clara",      desc: "加拿大英音 · 女声",          locale: "en-CA"),
+                MicrosoftVoicePreset(id: "en-CA-LiamNeural",        name: "Liam",       desc: "加拿大英音 · 男声",          locale: "en-CA"),
+                MicrosoftVoicePreset(id: "en-IN-NeerjaNeural",      name: "Neerja",     desc: "印度英音 · 女声",            locale: "en-IN"),
+                MicrosoftVoicePreset(id: "en-IN-PrabhatNeural",     name: "Prabhat",    desc: "印度英音 · 男声",            locale: "en-IN"),
             ]
         case "zh-Hant":
             return [
-                MicrosoftVoicePreset(id: "zh-TW-HsiaoChenNeural", name: "曉臻", desc: "女聲 · 台灣國語", locale: "zh-TW"),
-                MicrosoftVoicePreset(id: "zh-TW-YunJheNeural", name: "雲哲", desc: "男聲 · 台灣國語", locale: "zh-TW"),
-                MicrosoftVoicePreset(id: "zh-HK-HiuMaanNeural", name: "曉曼", desc: "女聲 · 粵語", locale: "zh-HK"),
-                MicrosoftVoicePreset(id: "zh-HK-WanLungNeural", name: "雲龍", desc: "男聲 · 粵語", locale: "zh-HK")
+                MicrosoftVoicePreset(id: "zh-TW-HsiaoChenNeural",  name: "曉臻",   desc: "女聲 · 台灣國語 · 推薦",  locale: "zh-TW"),
+                MicrosoftVoicePreset(id: "zh-TW-YunJheNeural",      name: "雲哲",   desc: "男聲 · 台灣國語",         locale: "zh-TW"),
+                MicrosoftVoicePreset(id: "zh-TW-HsiaoYuNeural",     name: "曉雨",   desc: "女聲 · 台灣國語 · 活潑",  locale: "zh-TW"),
+                MicrosoftVoicePreset(id: "zh-HK-HiuMaanNeural",     name: "曉曼",   desc: "女聲 · 粵語 · 推薦",      locale: "zh-HK"),
+                MicrosoftVoicePreset(id: "zh-HK-WanLungNeural",     name: "雲龍",   desc: "男聲 · 粵語",             locale: "zh-HK"),
+                MicrosoftVoicePreset(id: "zh-HK-HiuGaaiNeural",     name: "曉佳",   desc: "女聲 · 粵語 · 親切",      locale: "zh-HK"),
             ]
         case "ja":
             return [
-                MicrosoftVoicePreset(id: "ja-JP-NanamiNeural", name: "七海 (Nanami)", desc: "日本語 · 女性", locale: "ja-JP"),
-                MicrosoftVoicePreset(id: "ja-JP-KeitaNeural", name: "圭太 (Keita)", desc: "日本語 · 男性", locale: "ja-JP"),
-                MicrosoftVoicePreset(id: "ja-JP-AoiNeural", name: "葵 (Aoi)", desc: "日本語 · 女性", locale: "ja-JP")
+                MicrosoftVoicePreset(id: "ja-JP-NanamiNeural",  name: "七海 (Nanami)",  desc: "日本語 · 女性 · 推荐", locale: "ja-JP"),
+                MicrosoftVoicePreset(id: "ja-JP-KeitaNeural",   name: "圭太 (Keita)",   desc: "日本語 · 男性 · 推荐", locale: "ja-JP"),
+                MicrosoftVoicePreset(id: "ja-JP-AoiNeural",     name: "葵 (Aoi)",       desc: "日本語 · 女性",        locale: "ja-JP"),
+                MicrosoftVoicePreset(id: "ja-JP-DaichiNeural",  name: "大地 (Daichi)",  desc: "日本語 · 男性",        locale: "ja-JP"),
+                MicrosoftVoicePreset(id: "ja-JP-MayuNeural",    name: "繭 (Mayu)",      desc: "日本語 · 女性",        locale: "ja-JP"),
+                MicrosoftVoicePreset(id: "ja-JP-NaokiNeural",   name: "直樹 (Naoki)",   desc: "日本語 · 男性",        locale: "ja-JP"),
+                MicrosoftVoicePreset(id: "ja-JP-ShioriNeural",  name: "栞 (Shiori)",    desc: "日本語 · 女性",        locale: "ja-JP"),
+                MicrosoftVoicePreset(id: "ja-JP-TomokaNeural",  name: "友香 (Tomoka)",  desc: "日本語 · 女性",        locale: "ja-JP"),
             ]
         case "ko":
             return [
-                MicrosoftVoicePreset(id: "ko-KR-SunHiNeural", name: "선희 (SunHi)", desc: "한국어 · 여성", locale: "ko-KR"),
-                MicrosoftVoicePreset(id: "ko-KR-InJoonNeural", name: "인준 (InJoon)", desc: "한국어 · 남성", locale: "ko-KR"),
-                MicrosoftVoicePreset(id: "ko-KR-BongJinNeural", name: "봉진 (BongJin)", desc: "한국어 · 남성", locale: "ko-KR")
+                MicrosoftVoicePreset(id: "ko-KR-SunHiNeural",      name: "선희 (SunHi)",    desc: "한국어 · 여성 · 추천", locale: "ko-KR"),
+                MicrosoftVoicePreset(id: "ko-KR-InJoonNeural",      name: "인준 (InJoon)",   desc: "한국어 · 남성 · 추천", locale: "ko-KR"),
+                MicrosoftVoicePreset(id: "ko-KR-BongJinNeural",     name: "봉진 (BongJin)",  desc: "한국어 · 남성",        locale: "ko-KR"),
+                MicrosoftVoicePreset(id: "ko-KR-GookMinNeural",     name: "국민 (GookMin)",  desc: "한국어 · 남성",        locale: "ko-KR"),
+                MicrosoftVoicePreset(id: "ko-KR-JiMinNeural",       name: "지민 (JiMin)",    desc: "한국어 · 여성",        locale: "ko-KR"),
+                MicrosoftVoicePreset(id: "ko-KR-SeoHyeonNeural",    name: "서현 (SeoHyeon)", desc: "한국어 · 여성",        locale: "ko-KR"),
+                MicrosoftVoicePreset(id: "ko-KR-SoonBokNeural",     name: "순복 (SoonBok)",  desc: "한국어 · 여성",        locale: "ko-KR"),
+                MicrosoftVoicePreset(id: "ko-KR-YuJinNeural",       name: "유진 (YuJin)",    desc: "한국어 · 여성",        locale: "ko-KR"),
             ]
         case "fr":
             return [
-                MicrosoftVoicePreset(id: "fr-FR-DeniseNeural", name: "Denise", desc: "Français · Femme", locale: "fr-FR"),
-                MicrosoftVoicePreset(id: "fr-FR-HenriNeural", name: "Henri", desc: "Français · Homme", locale: "fr-FR"),
-                MicrosoftVoicePreset(id: "fr-CA-SylvieNeural", name: "Sylvie", desc: "Français · Canada", locale: "fr-CA")
+                MicrosoftVoicePreset(id: "fr-FR-DeniseNeural",      name: "Denise",     desc: "Français · Femme · Recommandé",  locale: "fr-FR"),
+                MicrosoftVoicePreset(id: "fr-FR-HenriNeural",       name: "Henri",      desc: "Français · Homme · Recommandé",  locale: "fr-FR"),
+                MicrosoftVoicePreset(id: "fr-FR-EloiseNeural",      name: "Eloise",     desc: "Français · Femme",               locale: "fr-FR"),
+                MicrosoftVoicePreset(id: "fr-FR-JosephineNeural",   name: "Josephine",  desc: "Français · Femme",               locale: "fr-FR"),
+                MicrosoftVoicePreset(id: "fr-FR-YvetteNeural",      name: "Yvette",     desc: "Français · Femme",               locale: "fr-FR"),
+                MicrosoftVoicePreset(id: "fr-FR-AlainNeural",       name: "Alain",      desc: "Français · Homme",               locale: "fr-FR"),
+                MicrosoftVoicePreset(id: "fr-FR-ClaudeNeural",      name: "Claude",     desc: "Français · Homme",               locale: "fr-FR"),
+                MicrosoftVoicePreset(id: "fr-FR-MauriceNeural",     name: "Maurice",    desc: "Français · Homme",               locale: "fr-FR"),
+                MicrosoftVoicePreset(id: "fr-CA-SylvieNeural",      name: "Sylvie",     desc: "Français · Canada · Femme",      locale: "fr-CA"),
+                MicrosoftVoicePreset(id: "fr-CA-AntoineNeural",     name: "Antoine",    desc: "Français · Canada · Homme",      locale: "fr-CA"),
+                MicrosoftVoicePreset(id: "fr-CA-JeanNeural",        name: "Jean",       desc: "Français · Canada · Homme",      locale: "fr-CA"),
             ]
         case "ru":
             return [
-                MicrosoftVoicePreset(id: "ru-RU-SvetlanaNeural", name: "Светлана (Svetlana)", desc: "Русский · Женский", locale: "ru-RU"),
-                MicrosoftVoicePreset(id: "ru-RU-DmitryNeural", name: "Дмитрий (Dmitry)", desc: "Русский · Мужской", locale: "ru-RU")
+                MicrosoftVoicePreset(id: "ru-RU-SvetlanaNeural",    name: "Светлана (Svetlana)", desc: "Русский · Женский · Рекомендовано", locale: "ru-RU"),
+                MicrosoftVoicePreset(id: "ru-RU-DmitryNeural",      name: "Дмитрий (Dmitry)",   desc: "Русский · Мужской · Рекомендовано", locale: "ru-RU"),
+                MicrosoftVoicePreset(id: "ru-RU-DariyaNeural",      name: "Дарья (Dariya)",     desc: "Русский · Женский",                 locale: "ru-RU"),
             ]
         case "de":
             return [
-                MicrosoftVoicePreset(id: "de-DE-KatjaNeural", name: "Katja", desc: "Deutsch · Weiblich", locale: "de-DE"),
-                MicrosoftVoicePreset(id: "de-DE-ConradNeural", name: "Conrad", desc: "Deutsch · Männlich", locale: "de-DE"),
-                MicrosoftVoicePreset(id: "de-DE-AmalaNeural", name: "Amala", desc: "Deutsch · Weiblich", locale: "de-DE")
+                MicrosoftVoicePreset(id: "de-DE-KatjaNeural",       name: "Katja",      desc: "Deutsch · Weiblich · Empfohlen", locale: "de-DE"),
+                MicrosoftVoicePreset(id: "de-DE-ConradNeural",      name: "Conrad",     desc: "Deutsch · Männlich · Empfohlen", locale: "de-DE"),
+                MicrosoftVoicePreset(id: "de-DE-AmalaNeural",       name: "Amala",      desc: "Deutsch · Weiblich",             locale: "de-DE"),
+                MicrosoftVoicePreset(id: "de-DE-BerndNeural",       name: "Bernd",      desc: "Deutsch · Männlich",             locale: "de-DE"),
+                MicrosoftVoicePreset(id: "de-DE-ChristophNeural",   name: "Christoph",  desc: "Deutsch · Männlich",             locale: "de-DE"),
+                MicrosoftVoicePreset(id: "de-DE-GiselaNeural",      name: "Gisela",     desc: "Deutsch · Weiblich",             locale: "de-DE"),
+                MicrosoftVoicePreset(id: "de-DE-KlaraNeural",       name: "Klara",      desc: "Deutsch · Weiblich",             locale: "de-DE"),
+                MicrosoftVoicePreset(id: "de-DE-KillianNeural",     name: "Killian",    desc: "Deutsch · Männlich",             locale: "de-DE"),
+                MicrosoftVoicePreset(id: "de-DE-MajaNeural",        name: "Maja",       desc: "Deutsch · Weiblich",             locale: "de-DE"),
+                MicrosoftVoicePreset(id: "de-DE-StefanNeural",      name: "Stefan",     desc: "Deutsch · Männlich",             locale: "de-DE"),
+                MicrosoftVoicePreset(id: "de-AT-IngridNeural",      name: "Ingrid",     desc: "Deutsch · Österreich · Weiblich",locale: "de-AT"),
+                MicrosoftVoicePreset(id: "de-AT-JonasNeural",       name: "Jonas",      desc: "Deutsch · Österreich · Männlich",locale: "de-AT"),
+                MicrosoftVoicePreset(id: "de-CH-LeniNeural",        name: "Leni",       desc: "Deutsch · Schweiz · Weiblich",   locale: "de-CH"),
+                MicrosoftVoicePreset(id: "de-CH-JanNeural",         name: "Jan",        desc: "Deutsch · Schweiz · Männlich",   locale: "de-CH"),
             ]
         case "es":
             return [
-                MicrosoftVoicePreset(id: "es-ES-ElviraNeural", name: "Elvira", desc: "Español · Femenino", locale: "es-ES"),
-                MicrosoftVoicePreset(id: "es-ES-AlvaroNeural", name: "Álvaro", desc: "Español · Masculino", locale: "es-ES")
+                MicrosoftVoicePreset(id: "es-ES-ElviraNeural",      name: "Elvira",     desc: "Español · Femenino · Recomendado",   locale: "es-ES"),
+                MicrosoftVoicePreset(id: "es-ES-AlvaroNeural",      name: "Álvaro",     desc: "Español · Masculino · Recomendado",  locale: "es-ES"),
+                MicrosoftVoicePreset(id: "es-ES-EstrellaNeural",    name: "Estrella",   desc: "Español · Femenino",                 locale: "es-ES"),
+                MicrosoftVoicePreset(id: "es-ES-IreneNeural",       name: "Irene",      desc: "Español · Femenino",                 locale: "es-ES"),
+                MicrosoftVoicePreset(id: "es-ES-LaiaNeural",        name: "Laia",       desc: "Español · Femenino",                 locale: "es-ES"),
+                MicrosoftVoicePreset(id: "es-ES-LiriaNeural",       name: "Liria",      desc: "Español · Femenino",                 locale: "es-ES"),
+                MicrosoftVoicePreset(id: "es-ES-ArnauNeural",       name: "Arnau",      desc: "Español · Masculino",                locale: "es-ES"),
+                MicrosoftVoicePreset(id: "es-ES-DarioNeural",       name: "Dario",      desc: "Español · Masculino",                locale: "es-ES"),
+                MicrosoftVoicePreset(id: "es-ES-EliasNeural",       name: "Elias",      desc: "Español · Masculino",                locale: "es-ES"),
+                MicrosoftVoicePreset(id: "es-ES-NilNeural",         name: "Nil",        desc: "Español · Masculino",                locale: "es-ES"),
+                MicrosoftVoicePreset(id: "es-MX-DaliaNeural",       name: "Dalia",      desc: "Español · México · Femenino",        locale: "es-MX"),
+                MicrosoftVoicePreset(id: "es-MX-JorgeNeural",       name: "Jorge",      desc: "Español · México · Masculino",       locale: "es-MX"),
+                MicrosoftVoicePreset(id: "es-MX-BeatrizNeural",     name: "Beatriz",    desc: "Español · México · Femenino",        locale: "es-MX"),
+                MicrosoftVoicePreset(id: "es-MX-CarlotaNeural",     name: "Carlota",    desc: "Español · México · Femenino",        locale: "es-MX"),
+                MicrosoftVoicePreset(id: "es-AR-ElenaNeural",       name: "Elena",      desc: "Español · Argentina · Femenino",     locale: "es-AR"),
+                MicrosoftVoicePreset(id: "es-AR-TomasNeural",       name: "Tomas",      desc: "Español · Argentina · Masculino",    locale: "es-AR"),
             ]
         case "it":
             return [
-                MicrosoftVoicePreset(id: "it-IT-ElsaNeural", name: "Elsa", desc: "Italiano · Femminile", locale: "it-IT"),
-                MicrosoftVoicePreset(id: "it-IT-IsabellaNeural", name: "Isabella", desc: "Italiano · Femminile", locale: "it-IT"),
-                MicrosoftVoicePreset(id: "it-IT-DiegoNeural", name: "Diego", desc: "Italiano · Maschile", locale: "it-IT")
+                MicrosoftVoicePreset(id: "it-IT-ElsaNeural",        name: "Elsa",       desc: "Italiano · Femminile · Consigliato", locale: "it-IT"),
+                MicrosoftVoicePreset(id: "it-IT-DiegoNeural",       name: "Diego",      desc: "Italiano · Maschile · Consigliato",  locale: "it-IT"),
+                MicrosoftVoicePreset(id: "it-IT-IsabellaNeural",    name: "Isabella",   desc: "Italiano · Femminile",               locale: "it-IT"),
+                MicrosoftVoicePreset(id: "it-IT-FiammettaNeural",   name: "Fiammetta",  desc: "Italiano · Femminile",               locale: "it-IT"),
+                MicrosoftVoicePreset(id: "it-IT-GaiaNeural",        name: "Gaia",       desc: "Italiano · Femminile",               locale: "it-IT"),
+                MicrosoftVoicePreset(id: "it-IT-ImolaNeural",       name: "Imola",      desc: "Italiano · Femminile",               locale: "it-IT"),
+                MicrosoftVoicePreset(id: "it-IT-PalmaNeural",       name: "Palma",      desc: "Italiano · Femminile",               locale: "it-IT"),
+                MicrosoftVoicePreset(id: "it-IT-BenignoNeural",     name: "Benigno",    desc: "Italiano · Maschile",                locale: "it-IT"),
+                MicrosoftVoicePreset(id: "it-IT-CalimeroNeural",    name: "Calimero",   desc: "Italiano · Maschile",                locale: "it-IT"),
+                MicrosoftVoicePreset(id: "it-IT-GianniNeural",      name: "Gianni",     desc: "Italiano · Maschile",                locale: "it-IT"),
+                MicrosoftVoicePreset(id: "it-IT-LorenzoNeural",     name: "Lorenzo",    desc: "Italiano · Maschile",                locale: "it-IT"),
+                MicrosoftVoicePreset(id: "it-IT-NiccoloNeural",     name: "Niccolo",    desc: "Italiano · Maschile",                locale: "it-IT"),
+                MicrosoftVoicePreset(id: "it-IT-RinaldoNeural",     name: "Rinaldo",    desc: "Italiano · Maschile",                locale: "it-IT"),
             ]
         default:
             return []
@@ -354,6 +450,8 @@ public struct MicrosoftSpeechSynthesizer {
             let xmlLang: String
             if voice.contains("en-GB") { xmlLang = "en-GB" }
             else if voice.contains("en-AU") { xmlLang = "en-AU" }
+            else if voice.contains("en-CA") { xmlLang = "en-CA" }
+            else if voice.contains("en-IN") { xmlLang = "en-IN" }
             else { xmlLang = "en-US" }
             return (voice, xmlLang)
         }
@@ -367,10 +465,20 @@ public struct MicrosoftSpeechSynthesizer {
             let v = MicrosoftSpeechConfig.defaultVoice(for: "fr")
             let xml = v.contains("fr-CA") ? "fr-CA" : "fr-FR"
             return (v, xml)
-        case "de", "de-de":
-            return (MicrosoftSpeechConfig.defaultVoice(for: "de"), "de-DE")
-        case "es", "es-es":
-            return (MicrosoftSpeechConfig.defaultVoice(for: "es"), "es-ES")
+        case "de", "de-de", "de-at", "de-ch":
+            let v = MicrosoftSpeechConfig.defaultVoice(for: "de")
+            let xml: String
+            if v.contains("de-AT") { xml = "de-AT" }
+            else if v.contains("de-CH") { xml = "de-CH" }
+            else { xml = "de-DE" }
+            return (v, xml)
+        case "es", "es-es", "es-mx", "es-ar":
+            let v = MicrosoftSpeechConfig.defaultVoice(for: "es")
+            let xml: String
+            if v.contains("es-MX") { xml = "es-MX" }
+            else if v.contains("es-AR") { xml = "es-AR" }
+            else { xml = "es-ES" }
+            return (v, xml)
         case "it", "it-it":
             return (MicrosoftSpeechConfig.defaultVoice(for: "it"), "it-IT")
         case "ru", "ru-ru":
@@ -414,14 +522,17 @@ public struct MicrosoftSpeechSynthesizer {
         
         let (resolvedVoice, xmlLang): (String, String)
         if let explicitVoice = voiceName, !explicitVoice.isEmpty {
+            // Extract the locale tag directly from the voice ID (e.g. "en-US-JennyNeural" → "en-US")
+            let components = explicitVoice.split(separator: "-")
             let lang: String
-            if explicitVoice.contains("zh-TW") { lang = "zh-TW" }
-            else if explicitVoice.contains("zh-HK") { lang = "zh-HK" }
-            else if explicitVoice.contains("zh") { lang = "zh-CN" }
-            else if explicitVoice.contains("en-GB") { lang = "en-GB" }
-            else if explicitVoice.contains("en-AU") { lang = "en-AU" }
-            else if explicitVoice.contains("en") { lang = "en-US" }
-            else { lang = "zh-CN" }
+            if components.count >= 2 {
+                let part1 = String(components[0])   // e.g. "zh", "en", "de"
+                let part2 = String(components[1])   // e.g. "CN", "US", "DE"
+                // Some voices have 3-part locale like "zh-CN-liaoning-XiaobeiNeural"; part1+part2 is always the locale
+                lang = "\(part1)-\(part2)"
+            } else {
+                lang = "zh-CN"
+            }
             resolvedVoice = explicitVoice
             xmlLang = lang
         } else {

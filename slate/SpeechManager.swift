@@ -356,6 +356,28 @@ public final class SpeechManager: NSObject, ObservableObject, AVSpeechSynthesize
         }
     }
     
+    /// Speaks text using a specific provider — used by the voice settings sheet to preview
+    /// the correct engine regardless of the currently active global provider.
+    public func speak(text: String, languageCode: String? = nil, as provider: SpeechProvider) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        
+        stop()
+        
+        switch provider {
+        case .microsoft:
+            if MicrosoftSpeechConfig.shared.isConfigured {
+                speakWithMicrosoft(text: trimmed, languageCode: languageCode)
+            } else {
+                speakWithSystem(text: trimmed, languageCode: languageCode)
+            }
+        case .google:
+            speakWithGoogle(text: trimmed, languageCode: languageCode)
+        case .system:
+            speakWithSystem(text: trimmed, languageCode: languageCode)
+        }
+    }
+    
     // MARK: - 1. Google Speech Synthesis
     private func speakWithGoogle(text: String, languageCode: String?) {
         let apiKey = GoogleSpeechConfig.shared.apiKey
