@@ -152,7 +152,13 @@ final class WindowManager: NSObject, NSWindowDelegate, ObservableObject {
         let panelHeight = panel.frame.height
         
         let x = screenRect.origin.x + (screenRect.width - panelWidth) / 2
-        let y = screenRect.origin.y + (screenRect.height - panelHeight) * 0.72
+        // Place the window's top edge 20% down from the top of the usable screen.
+        // Height growth is anchored to this top edge, leaving room below for long text.
+        let topInset = screenRect.height * 0.20
+        let y = min(
+            screenRect.maxY - panelHeight,
+            max(screenRect.minY, screenRect.maxY - topInset - panelHeight)
+        )
         
         panel.setFrame(NSRect(x: x, y: y, width: panelWidth, height: panelHeight), display: true)
     }

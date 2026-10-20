@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var isHoveringCopy: Bool = false
     @State private var showCopiedToast: Bool = false
     @State private var showInputCopiedToast: Bool = false
+    @State private var showOCRFailureToast: Bool = false
     @State private var showFontSizeToast: Bool = false
     @State private var hideFontSizeToastTask: Task<Void, Never>? = nil
     @State private var showSettingsMenu: Bool = false
@@ -99,7 +100,13 @@ struct ContentView: View {
         VStack {
             Spacer()
             HStack(spacing: 6) {
-                if showFontSizeToast {
+                if showOCRFailureToast {
+                    Image(systemName: "text.viewfinder")
+                        .foregroundColor(.orange)
+                    Text(loc("ocr_no_text"))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(isDark ? .white : Color.black.opacity(0.90))
+                } else if showFontSizeToast {
                     Image(systemName: "textformat.size")
                         .foregroundColor(Color.accentColor)
                     Text(loc("toast_font_size", "\(Int(fontSizeManager.currentSize))"))
@@ -697,7 +704,7 @@ struct ContentView: View {
             .zIndex(1)
             
             // Toast Indicator (层级置顶，确保绝不被大玻璃卡片遮挡)
-            if showCopiedToast || showInputCopiedToast || showFontSizeToast {
+            if showCopiedToast || showInputCopiedToast || showFontSizeToast || showOCRFailureToast {
                 copiedToastView
                     .zIndex(100)
             }
@@ -714,7 +721,7 @@ struct ContentView: View {
             WindowManager.shared.updateWindowHeight(newHeight: height)
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isExpanded)
-        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: showCopiedToast || showInputCopiedToast || showFontSizeToast)
+        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: showCopiedToast || showInputCopiedToast || showFontSizeToast || showOCRFailureToast)
         .onChange(of: fontSizeManager.currentSize) { _, _ in
             hideFontSizeToastTask?.cancel()
             withAnimation(.spring(response: 0.22, dampingFraction: 0.8)) {
@@ -766,6 +773,15 @@ struct ContentView: View {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                         isInputFocused = true
                     }
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ScreenshotOCRFailed"))) { _ in
+            showOCRFailureToast = true
+            Task {
+                try? await Task.sleep(nanoseconds: 2_200_000_000)
+                withAnimation(.easeOut(duration: 0.2)) {
+                    showOCRFailureToast = false
                 }
             }
         }
