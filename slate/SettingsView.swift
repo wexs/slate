@@ -52,6 +52,7 @@ public struct SettingsView: View {
     @ObservedObject private var translationService = TranslationService.shared
     @ObservedObject private var launchManager = LaunchAtLoginManager.shared
     @ObservedObject private var fontSizeManager = FontSizeManager.shared
+    @ObservedObject private var updateManager = UpdateManager.shared
     
     // Translation Configs
     @ObservedObject private var googleConfig = GoogleConfig.shared
@@ -1941,6 +1942,156 @@ public struct SettingsView: View {
         }
     }
     
+    // MARK: - Update Button Area
+    @ViewBuilder
+    private var updateButtonArea: some View {
+        VStack(spacing: 10) {
+            switch updateManager.state {
+            case .idle:
+                HStack(spacing: 12) {
+                    Button {
+                        updateManager.checkForUpdates()
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .font(.system(size: 11))
+                            Text(loc("about_check_updates"))
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.regular)
+                }
+
+            case .checking:
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                    Text(loc("update_checking"))
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
+
+            case .upToDate:
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                        .font(.system(size: 13))
+                    Text(loc("update_up_to_date"))
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
+                .onAppear {
+                    Task {
+                        try? await Task.sleep(nanoseconds: 3_000_000_000)
+                        if case .upToDate = updateManager.state {
+                            updateManager.state = .idle
+                        }
+                    }
+                }
+
+            case .available(let release):
+                VStack(spacing: 8) {
+                    HStack(spacing: 12) {
+                        Text(loc("update_available", release.version))
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.primary)
+
+                        Button {
+                            updateManager.downloadAndInstall(release: release)
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "arrow.down.circle")
+                                    .font(.system(size: 11))
+                                Text(loc("update_download_now"))
+                                    .font(.system(size: 12, weight: .medium))
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 6)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.regular)
+                    }
+
+                    if !release.releaseNotes.isEmpty {
+                        DisclosureGroup(loc("update_release_notes")) {
+                            ScrollView {
+                                Text(release.releaseNotes)
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(6)
+                            }
+                            .frame(maxHeight: 80)
+                            .background(Color(NSColor.textBackgroundColor).opacity(0.6))
+                            .cornerRadius(6)
+                        }
+                        .font(.system(size: 11))
+                        .frame(maxWidth: 280)
+                    }
+                }
+
+            case .downloading(let progress):
+                VStack(spacing: 6) {
+                    ProgressView(value: progress)
+                        .progressViewStyle(.linear)
+                        .frame(width: 200)
+                    HStack(spacing: 12) {
+                        Text(loc("update_downloading", Int(progress * 100)))
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                        Button {
+                            updateManager.cancelDownload()
+                        } label: {
+                            Text(loc("update_cancel"))
+                                .font(.system(size: 12))
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+
+            case .readyToInstall:
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                    Text(loc("update_installing"))
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
+
+            case .error(let message):
+                VStack(spacing: 8) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                            .font(.system(size: 12))
+                        Text(message)
+                            .font(.system(size: 12))
+                            .foregroundColor(.orange)
+                            .multilineTextAlignment(.center)
+                    }
+                    Button {
+                        updateManager.checkForUpdates()
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .font(.system(size: 11))
+                            Text(loc("update_retry"))
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.regular)
+                }
+            }
+        }
+    }
+
     // MARK: - 4. 关于软件 (Apple 偏好设置经典居中排版与精简文案)
     private var aboutSection: some View {
         VStack(spacing: 26) {
@@ -1976,7 +2127,9 @@ public struct SettingsView: View {
                         .font(.system(size: 22, weight: .bold))
                         .foregroundColor(.primary)
                     
-                    Text(loc("about_version_format", "1.0.0", "1"))
+                    Text(loc("about_version_format",
+                              Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0",
+                              Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"))
                         .font(.system(size: 13))
                         .foregroundColor(.secondary)
                 }
@@ -1987,43 +2140,9 @@ public struct SettingsView: View {
                     .padding(.top, 2)
             }
             
-            // 3. 快捷动作按钮
-            HStack(spacing: 12) {
-                Button {
-                    if let url = URL(string: "https://github.com/maple-im/slate") {
-                        NSWorkspace.shared.open(url)
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "link")
-                            .font(.system(size: 11))
-                        Text(loc("about_github"))
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.regular)
-                
-                Button {
-                    if let url = URL(string: "https://github.com/maple-im/slate/releases") {
-                        NSWorkspace.shared.open(url)
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "arrow.triangle.2.circlepath")
-                            .font(.system(size: 11))
-                        Text(loc("about_check_updates"))
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.regular)
-            }
-            .padding(.top, 4)
+            // 3. 更新按钮区域
+            updateButtonArea
+                .padding(.top, 4)
             
             // 4. 底部版权与设计声明
             VStack(spacing: 4) {
