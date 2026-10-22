@@ -191,6 +191,10 @@ public final class LocalizationManager: ObservableObject {
             "menu_toggle_translate": "显示/隐藏翻译",
             "menu_selection_translate": "划词选中文本翻译",
             "menu_ocr_translate": "截图 OCR 识别翻译",
+            "usage_summary_title": "翻译字符统计",
+            "usage_today": "今日：%@ 字符",
+            "usage_week": "本周：%@ 字符",
+            "usage_month": "本月：%@ 字符",
             "menu_preferences": "偏好设置...",
             "menu_quit": "退出",
             
@@ -745,6 +749,10 @@ public final class LocalizationManager: ObservableObject {
             "menu_toggle_translate": "Show/Hide Translation",
             "menu_selection_translate": "Translate Selected Text",
             "menu_ocr_translate": "Screenshot OCR Translation",
+            "usage_summary_title": "Translation character usage",
+            "usage_today": "Today: %@ characters",
+            "usage_week": "This week: %@ characters",
+            "usage_month": "This month: %@ characters",
             "menu_preferences": "Preferences...",
             "menu_quit": "Quit",
             

@@ -510,7 +510,7 @@ struct ContentView: View {
             }
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
-            .glassEffect(.clear.interactive(), in: .capsule)
+            .glassEffect(.clear, in: .capsule)
             
             // Provider Picker Capsule
             Menu {
@@ -547,7 +547,7 @@ struct ContentView: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 7)
                 .contentShape(Capsule())
-                .glassEffect(.clear.interactive(), in: .capsule)
+                .glassEffect(.clear, in: .capsule)
             }
             .buttonStyle(.plain)
             .help(loc("tab_translation"))
@@ -675,7 +675,7 @@ struct ContentView: View {
             .frame(width: windowManager.widthMode.cardWidth)
             .fixedSize(horizontal: false, vertical: true)
             // MARK: - Apple 官方 Liquid Glass 原生液态玻璃效果
-            .glassEffect(.regular.interactive(), in: .rect(cornerRadius: cardRadius))
+            .glassEffect(.regular, in: .rect(cornerRadius: cardRadius))
             .background(heightReporter)
             // 1. 亮面高光外轮廓边框 (Refractive Specular Border)
             .overlay(
@@ -828,8 +828,6 @@ private struct ScrollContentHeightKey: PreferenceKey {
 struct GlassCircleButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.88 : 1.0)
-            .animation(.spring(response: 0.22, dampingFraction: 0.72), value: configuration.isPressed)
     }
 }
 
@@ -892,7 +890,7 @@ struct HoverCircleIconView: View {
             }
         }
         .frame(width: size, height: size)
-        .glassEffect(.clear.interactive(), in: .circle)
+        .glassEffect(.clear, in: .circle)
         .shadow(
             color: isActive ? tintColor.opacity(isDark ? 0.40 : 0.25) : Color.clear,
             radius: 5,

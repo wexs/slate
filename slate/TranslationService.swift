@@ -3,6 +3,57 @@ import SwiftUI
 import NaturalLanguage
 import Combine
 
+/// Tracks successfully translated source characters locally for the status menu.
+@MainActor
+final class TranslationUsageTracker {
+    static let shared = TranslationUsageTracker()
+
+    private struct Entry: Codable {
+        let date: Date
+        let characters: Int
+    }
+
+    private let storageKey = "translation_usage_entries"
+    private var entries: [Entry]
+
+    private init() {
+        if let data = UserDefaults.standard.data(forKey: storageKey),
+           let savedEntries = try? JSONDecoder().decode([Entry].self, from: data) {
+            entries = savedEntries
+        } else {
+            entries = []
+        }
+    }
+
+    func recordSuccessfulTranslation(_ text: String) {
+        let count = text.count
+        guard count > 0 else { return }
+        entries.append(Entry(date: Date(), characters: count))
+        // Keep enough history to cover a full year while bounding local storage.
+        let cutoff = Calendar.current.date(byAdding: .year, value: -1, to: Date()) ?? .distantPast
+        entries.removeAll { $0.date < cutoff }
+        persist()
+    }
+
+    func summary() -> (day: Int, week: Int, month: Int) {
+        let calendar = Calendar.current
+        let now = Date()
+        let dayStart = calendar.startOfDay(for: now)
+        let weekStart = calendar.dateInterval(of: .weekOfYear, for: now)?.start ?? dayStart
+        let monthStart = calendar.dateInterval(of: .month, for: now)?.start ?? dayStart
+
+        func total(since start: Date) -> Int {
+            entries.reduce(0) { $0 + ($1.date >= start ? $1.characters : 0) }
+        }
+        return (total(since: dayStart), total(since: weekStart), total(since: monthStart))
+    }
+
+    private func persist() {
+        guard let data = try? JSONEncoder().encode(entries) else { return }
+        UserDefaults.standard.set(data, forKey: storageKey)
+    }
+}
+
 @MainActor
 final class TranslationService: ObservableObject {
     static let shared = TranslationService()
@@ -310,6 +361,7 @@ final class TranslationService: ObservableObject {
                 guard !Task.isCancelled else { return }
                 self.translatedText = result
                 self.lastTranslatedInput = text
+                TranslationUsageTracker.shared.recordSuccessfulTranslation(text)
                 self.isTranslating = false
                 self.errorMessage = nil
             } catch {

@@ -70,12 +70,7 @@ public final class MenuBarManager: NSObject, ObservableObject {
     }
     
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
-        let currentEvent = NSApp.currentEvent
-        if currentEvent?.type == .rightMouseUp {
-            showContextMenu()
-        } else {
-            WindowManager.shared.toggleWindow()
-        }
+        showContextMenu()
     }
     
     private func showContextMenu() {
@@ -89,6 +84,16 @@ public final class MenuBarManager: NSObject, ObservableObject {
         menu.addItem(NSMenuItem(title: "\(loc("menu_selection_translate")) (\(selectionSymbol))", action: #selector(triggerSelectionTranslate), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "\(loc("menu_ocr_translate")) (\(ocrSymbol))", action: #selector(triggerOcrTranslate), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
+        let usage = TranslationUsageTracker.shared.summary()
+        let usageItem = NSMenuItem(title: loc("usage_summary_title"), action: nil, keyEquivalent: "")
+        usageItem.isEnabled = false
+        menu.addItem(usageItem)
+        for (key, count) in [("usage_today", usage.day), ("usage_week", usage.week), ("usage_month", usage.month)] {
+            let item = NSMenuItem(title: LocalizationManager.shared.t(key, count.formatted()), action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+        }
+        menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: loc("menu_preferences"), action: #selector(openSettings), keyEquivalent: ","))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: loc("menu_quit"), action: #selector(quitApp), keyEquivalent: "q"))
@@ -99,7 +104,7 @@ public final class MenuBarManager: NSObject, ObservableObject {
         
         statusItem?.menu = menu
         button.performClick(nil)
-        statusItem?.menu = nil // Reset so regular click calls statusItemClicked
+        statusItem?.menu = nil // Keep custom menu presentation limited to this click.
     }
     
     @objc private func triggerOcrTranslate() {
