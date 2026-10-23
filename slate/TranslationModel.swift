@@ -430,7 +430,7 @@ public enum TranslationProvider: String, CaseIterable, Identifiable {
         case .google: return "google"
         case .deepl: return "deepl"
         case .microsoft: return "Microsoft"
-        case .papago: return "papago"
+        case .papago: return "naver"
         case .baidu: return "baidu"
         case .alibaba: return "alibaba"
         case .volcengine: return "huoshan"

@@ -709,6 +709,7 @@ struct ContentView: View {
                     .zIndex(100)
             }
         }
+        .environment(\.locale, Locale(identifier: locManager.currentResolvedLanguage))
         .padding(
             EdgeInsets(
                 top: WindowLayout.topPadding,

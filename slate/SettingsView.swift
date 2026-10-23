@@ -188,6 +188,7 @@ public struct SettingsView: View {
             bottomStatusBar
         }
         .frame(width: 780, height: 550)
+        .environment(\.locale, Locale(identifier: locManager.currentResolvedLanguage))
         .background(Color(NSColor.windowBackgroundColor))
         .sheet(item: $voiceSheetItem) { provider in
             VoiceSettingsSheetView(provider: provider)
@@ -2485,6 +2486,7 @@ public struct VoiceSettingsSheetView: View {
         }
         .padding(20)
         .frame(width: 520)
+        .environment(\.locale, Locale(identifier: locManager.currentResolvedLanguage))
         .onAppear {
             if provider == .microsoft {
                 triggerFetchIfNeeded()
@@ -2657,6 +2659,7 @@ public final class SettingsWindowController: NSObject, NSWindowDelegate, NSToolb
     }
     
     public func updateLocalization() {
+        window?.title = loc("settings_window_title")
         if let items = toolbar?.items {
             for item in items {
                 if let tab = SettingsTab(rawValue: item.itemIdentifier.rawValue) {
