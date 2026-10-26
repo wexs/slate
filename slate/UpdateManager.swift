@@ -4,11 +4,12 @@ import Combine
 
 // MARK: - Types
 
-struct AppRelease: Codable {
+struct AppRelease: Codable, Equatable {
     let version: String        // e.g. "1.2.0"
     let buildNumber: Int       // e.g. 5
     let releaseNotes: String   // changelog text
-    let downloadURL: String    // direct URL to .zip file
+    let downloadURL: String    // direct URL to .dmg or .zip file (or release page)
+    let htmlURL: String        // GitHub release page URL
     let minOSVersion: String   // e.g. "12.0"
 
     enum CodingKeys: String, CodingKey {
@@ -16,17 +17,59 @@ struct AppRelease: Codable {
         case buildNumber = "build_number"
         case releaseNotes = "release_notes"
         case downloadURL = "download_url"
+        case htmlURL = "html_url"
         case minOSVersion = "min_os_version"
+    }
+
+    init(
+        version: String,
+        buildNumber: Int = 0,
+        releaseNotes: String = "",
+        downloadURL: String = "",
+        htmlURL: String = "",
+        minOSVersion: String = "12.0"
+    ) {
+        self.version = version
+        self.buildNumber = buildNumber
+        self.releaseNotes = releaseNotes
+        self.downloadURL = downloadURL
+        self.htmlURL = htmlURL
+        self.minOSVersion = minOSVersion
     }
 }
 
-private struct LatestReleaseResponse: Codable {
-    let hasUpdate: Bool
-    let release: AppRelease?
+// GitHub Releases API Models
+private struct GitHubAsset: Codable {
+    let name: String
+    let browserDownloadUrl: String
+    let contentType: String?
+    let size: Int64?
 
     enum CodingKeys: String, CodingKey {
-        case hasUpdate = "has_update"
-        case release
+        case name
+        case browserDownloadUrl = "browser_download_url"
+        case contentType = "content_type"
+        case size
+    }
+}
+
+private struct GitHubReleaseResponse: Codable {
+    let tagName: String
+    let name: String?
+    let body: String?
+    let htmlUrl: String
+    let draft: Bool?
+    let prerelease: Bool?
+    let assets: [GitHubAsset]?
+
+    enum CodingKeys: String, CodingKey {
+        case tagName = "tag_name"
+        case name
+        case body
+        case htmlUrl = "html_url"
+        case draft
+        case prerelease
+        case assets
     }
 }
 
@@ -36,7 +79,7 @@ enum UpdateState: Equatable {
     case upToDate
     case available(release: AppRelease)
     case downloading(progress: Double)
-    case readyToInstall(zipURL: URL, release: AppRelease)
+    case readyToInstall(fileURL: URL, release: AppRelease)
     case error(message: String)
 
     static func == (lhs: UpdateState, rhs: UpdateState) -> Bool {
@@ -60,6 +103,13 @@ enum UpdateState: Equatable {
 final class UpdateManager: ObservableObject {
 
     static let shared = UpdateManager()
+
+    /// GitHub 项目主页
+    static let projectURL = "https://github.com/wexs/slate"
+    /// GitHub Releases 页面
+    static let releasesPageURL = "https://github.com/wexs/slate/releases"
+    /// GitHub Releases API 最新发布检查地址
+    private let updateCheckURL = "https://api.github.com/repos/wexs/slate/releases/latest"
 
     @Published var state: UpdateState = .idle
 
@@ -93,11 +143,21 @@ final class UpdateManager: ObservableObject {
 
     private var downloadTask: Task<Void, Never>?
 
-    private let updateCheckURL = "https://api.slate-app.com/v1/latest-release"
-
     private init() {}
 
     // MARK: - Public API
+
+    func openProjectPage() {
+        if let url = URL(string: Self.projectURL) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    func openReleasesPage() {
+        if let url = URL(string: Self.releasesPageURL) {
+            NSWorkspace.shared.open(url)
+        }
+    }
 
     func checkForUpdates() {
         guard !isChecking else { return }
@@ -105,23 +165,15 @@ final class UpdateManager: ObservableObject {
 
         Task {
             do {
-                guard var components = URLComponents(string: updateCheckURL) else {
+                guard let url = URL(string: updateCheckURL) else {
                     self.state = .error(message: "无效的更新服务器地址")
-                    return
-                }
-                components.queryItems = [
-                    URLQueryItem(name: "platform", value: "macos"),
-                    URLQueryItem(name: "current_version", value: currentVersion),
-                    URLQueryItem(name: "current_build", value: String(currentBuild))
-                ]
-                guard let url = components.url else {
-                    self.state = .error(message: "无法构建更新请求")
                     return
                 }
 
                 var request = URLRequest(url: url)
                 request.timeoutInterval = 15
-                request.setValue("Slate/\(currentVersion) macOS", forHTTPHeaderField: "User-Agent")
+                request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+                request.setValue("Slate/\(currentVersion) (macOS)", forHTTPHeaderField: "User-Agent")
 
                 let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -129,20 +181,57 @@ final class UpdateManager: ObservableObject {
                     self.state = .error(message: "服务器响应异常")
                     return
                 }
+
+                // 404 表示仓库尚未发布 Release，视为当前已是最新
+                if httpResponse.statusCode == 404 {
+                    self.state = .upToDate
+                    return
+                }
+
                 guard httpResponse.statusCode == 200 else {
-                    self.state = .error(message: "服务器错误 (\(httpResponse.statusCode))")
+                    self.state = .error(message: "GitHub 响应异常 (\(httpResponse.statusCode))")
                     return
                 }
 
                 let decoder = JSONDecoder()
-                let result = try decoder.decode(LatestReleaseResponse.self, from: data)
+                let gitHubRelease = try decoder.decode(GitHubReleaseResponse.self, from: data)
 
-                if result.hasUpdate, let release = result.release {
-                    if isNewerVersion(release.version, than: currentVersion) {
-                        self.state = .available(release: release)
-                    } else {
-                        self.state = .upToDate
-                    }
+                // 忽略草稿版本
+                if gitHubRelease.draft == true {
+                    self.state = .upToDate
+                    return
+                }
+
+                // 清理版本号（如去掉前导 "v" 或 "V"）
+                var cleanVersion = gitHubRelease.tagName.trimmingCharacters(in: .whitespacesAndNewlines)
+                if cleanVersion.lowercased().hasPrefix("v") {
+                    cleanVersion.removeFirst()
+                }
+
+                // 寻找最优下载资源：优先 DMG 安装镜像，其次 ZIP 压缩包，再次任意其它发布资源
+                let assets = gitHubRelease.assets ?? []
+                var chosenDownloadURL: String?
+                if let dmgAsset = assets.first(where: { $0.name.lowercased().hasSuffix(".dmg") }) {
+                    chosenDownloadURL = dmgAsset.browserDownloadUrl
+                } else if let zipAsset = assets.first(where: { $0.name.lowercased().hasSuffix(".zip") }) {
+                    chosenDownloadURL = zipAsset.browserDownloadUrl
+                } else if let firstAsset = assets.first {
+                    chosenDownloadURL = firstAsset.browserDownloadUrl
+                } else {
+                    chosenDownloadURL = gitHubRelease.htmlUrl
+                }
+
+                let release = AppRelease(
+                    version: cleanVersion,
+                    buildNumber: 0,
+                    releaseNotes: gitHubRelease.body ?? "",
+                    downloadURL: chosenDownloadURL ?? gitHubRelease.htmlUrl,
+                    htmlURL: gitHubRelease.htmlUrl,
+                    minOSVersion: "12.0"
+                )
+
+                if isNewerVersion(cleanVersion, than: currentVersion) {
+                    self.state = .available(release: release)
                 } else {
                     self.state = .upToDate
                 }
@@ -171,13 +260,23 @@ final class UpdateManager: ObservableObject {
                     return
                 }
 
-                // Create a temporary file URL for the zip
+                let ext = downloadURL.pathExtension.lowercased()
+                // 如果资产既不是 DMG 也不是 ZIP（例如回退到了 GitHub Release 网页），直接调用浏览器打开
+                guard ext == "dmg" || ext == "zip" else {
+                    if let targetPageURL = URL(string: release.htmlURL.isEmpty ? release.downloadURL : release.htmlURL) {
+                        NSWorkspace.shared.open(targetPageURL)
+                    }
+                    self.state = .idle
+                    return
+                }
+
+                // Create a temporary file URL
                 let tempDir = FileManager.default.temporaryDirectory
-                let zipFileName = "slate-update-\(release.version).zip"
-                let zipURL = tempDir.appendingPathComponent(zipFileName)
+                let fileName = "slate-update-\(release.version).\(ext)"
+                let fileURL = tempDir.appendingPathComponent(fileName)
 
                 // Remove any previous partial download
-                try? FileManager.default.removeItem(at: zipURL)
+                try? FileManager.default.removeItem(at: fileURL)
 
                 // Stream download with progress
                 var request = URLRequest(url: downloadURL)
@@ -193,7 +292,7 @@ final class UpdateManager: ObservableObject {
                 let totalBytes = httpResponse.expectedContentLength
                 var receivedBytes: Int64 = 0
 
-                guard let outputStream = OutputStream(url: zipURL, append: false) else {
+                guard let outputStream = OutputStream(url: fileURL, append: false) else {
                     self.state = .error(message: "无法创建临时文件")
                     return
                 }
@@ -206,7 +305,7 @@ final class UpdateManager: ObservableObject {
                 for try await byte in asyncBytes {
                     if Task.isCancelled {
                         outputStream.close()
-                        try? FileManager.default.removeItem(at: zipURL)
+                        try? FileManager.default.removeItem(at: fileURL)
                         self.state = .idle
                         return
                     }
@@ -231,7 +330,7 @@ final class UpdateManager: ObservableObject {
                 self.state = .downloading(progress: 1.0)
 
                 // Proceed to install
-                await installUpdate(zipURL: zipURL, release: release)
+                await installUpdate(fileURL: fileURL, release: release)
 
             } catch is CancellationError {
                 self.state = .idle
@@ -251,9 +350,18 @@ final class UpdateManager: ObservableObject {
 
     // MARK: - Private
 
-    private func installUpdate(zipURL: URL, release: AppRelease) async {
-        state = .readyToInstall(zipURL: zipURL, release: release)
+    private func installUpdate(fileURL: URL, release: AppRelease) async {
+        state = .readyToInstall(fileURL: fileURL, release: release)
 
+        let ext = fileURL.pathExtension.lowercased()
+        if ext == "dmg" {
+            installDMGUpdate(dmgURL: fileURL, release: release)
+        } else {
+            installZipUpdate(zipURL: fileURL, release: release)
+        }
+    }
+
+    private func installZipUpdate(zipURL: URL, release: AppRelease) {
         let fm = FileManager.default
         let tempDir = fm.temporaryDirectory
         let extractDir = tempDir.appendingPathComponent("slate-update-extracted-\(release.version)")
@@ -321,13 +429,73 @@ rm -f "\(zipURL.path)"
 
         do {
             try scriptProcess.run()
+            NSApp.terminate(nil)
         } catch {
             self.state = .error(message: "无法启动安装程序，请尝试手动安装")
+        }
+    }
+
+    private func installDMGUpdate(dmgURL: URL, release: AppRelease) {
+        let fm = FileManager.default
+        let tempDir = fm.temporaryDirectory
+        let mountPoint = tempDir.appendingPathComponent("slate-dmg-mount-\(UUID().uuidString)")
+        try? fm.createDirectory(at: mountPoint, withIntermediateDirectories: true)
+
+        let attachProcess = Process()
+        attachProcess.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
+        attachProcess.arguments = ["attach", dmgURL.path, "-mountpoint", mountPoint.path, "-nobrowse", "-quiet", "-noautoopen"]
+
+        do {
+            try attachProcess.run()
+            attachProcess.waitUntilExit()
+        } catch {
+            // 若自动挂载异常，直接打开 DMG 镜像引导手动安装
+            NSWorkspace.shared.open(dmgURL)
+            self.state = .idle
             return
         }
 
-        // Quit the app so the script can replace it
-        NSApp.terminate(nil)
+        guard attachProcess.terminationStatus == 0,
+              let newAppURL = findAppBundle(in: mountPoint) else {
+            _ = try? fm.removeItem(at: mountPoint)
+            NSWorkspace.shared.open(dmgURL)
+            self.state = .idle
+            return
+        }
+
+        let currentAppPath = Bundle.main.bundlePath
+        let scriptContent = """
+#!/bin/sh
+sleep 1
+rm -rf "\(currentAppPath)"
+cp -R "\(newAppURL.path)" "\(currentAppPath)"
+/usr/bin/hdiutil detach "\(mountPoint.path)" -force -quiet
+open "\(currentAppPath)"
+rm -rf "\(mountPoint.path)"
+rm -f "\(dmgURL.path)"
+"""
+
+        let scriptURL = tempDir.appendingPathComponent("slate-update-\(release.version).sh")
+        do {
+            try scriptContent.write(to: scriptURL, atomically: true, encoding: .utf8)
+            try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
+        } catch {
+            NSWorkspace.shared.open(dmgURL)
+            self.state = .idle
+            return
+        }
+
+        let scriptProcess = Process()
+        scriptProcess.executableURL = URL(fileURLWithPath: "/bin/sh")
+        scriptProcess.arguments = [scriptURL.path]
+
+        do {
+            try scriptProcess.run()
+            NSApp.terminate(nil)
+        } catch {
+            NSWorkspace.shared.open(dmgURL)
+            self.state = .idle
+        }
     }
 
     private func findAppBundle(in directory: URL) -> URL? {

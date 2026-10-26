@@ -237,9 +237,7 @@ public struct SettingsView: View {
             Spacer()
             
             Button {
-                if let url = URL(string: "https://github.com/maple-im/slate") {
-                    NSWorkspace.shared.open(url)
-                }
+                updateManager.openProjectPage()
             } label: {
                 Image(systemName: "questionmark.circle")
                     .font(.system(size: 13))
@@ -2014,6 +2012,20 @@ public struct SettingsView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.regular)
+
+                        if let url = URL(string: release.htmlURL), !release.htmlURL.isEmpty {
+                            Button {
+                                NSWorkspace.shared.open(url)
+                            } label: {
+                                Image(systemName: "arrow.up.right.square")
+                                    .font(.system(size: 11))
+                                Text("GitHub")
+                                    .font(.system(size: 12))
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.regular)
+                            .help("在 GitHub 中查看")
+                        }
                     }
 
                     if !release.releaseNotes.isEmpty {
@@ -2074,20 +2086,38 @@ public struct SettingsView: View {
                             .foregroundColor(.orange)
                             .multilineTextAlignment(.center)
                     }
-                    Button {
-                        updateManager.checkForUpdates()
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "arrow.triangle.2.circlepath")
-                                .font(.system(size: 11))
-                            Text(loc("update_retry"))
-                                .font(.system(size: 12, weight: .medium))
+                    HStack(spacing: 10) {
+                        Button {
+                            updateManager.checkForUpdates()
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                    .font(.system(size: 11))
+                                Text(loc("update_retry"))
+                                    .font(.system(size: 12, weight: .medium))
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 6)
                         }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
+                        .buttonStyle(.bordered)
+                        .controlSize(.regular)
+
+                        Button {
+                            updateManager.openReleasesPage()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.up.right.square")
+                                    .font(.system(size: 11))
+                                Text("GitHub")
+                                    .font(.system(size: 12))
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.regular)
+                        .help("前往 GitHub Releases 页面")
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.regular)
                 }
             }
         }

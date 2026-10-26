@@ -3130,6 +3130,9 @@
         }
       }
     },
+    "GitHub" : {
+
+    },
     "Google 多语言标准自然音色" : {
 
     },
@@ -3653,6 +3656,9 @@
           }
         }
       }
+    },
+    "https://github.com/wexs/slate" : {
+
     },
     "icon_cat" : {
       "localizations" : {
@@ -12874,6 +12880,12 @@
       }
     },
     "从 Azure 重新获取最新语音列表" : {
+
+    },
+    "前往 GitHub Releases 页面" : {
+
+    },
+    "在 GitHub 中查看" : {
 
     },
     "已同步 · %@" : {
