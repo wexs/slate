@@ -115,7 +115,43 @@ public final class LocalizationManager: ObservableObject {
                 return value
             }
         }
-        return key
+        switch key {
+        case "target_language":
+            switch currentResolvedLanguage {
+            case "zh-Hant": return "目標語言"
+            case "ja": return "対象言語"
+            case "ko": return "도착어"
+            case "ru": return "Целевой язык"
+            case "es": return "Idioma de destino"
+            case "fr": return "Langue cible"
+            case "en": return "Target Language"
+            default: return "目标语言"
+            }
+        case "source_language":
+            switch currentResolvedLanguage {
+            case "zh-Hant": return "來源語言"
+            case "ja": return "送信元言語"
+            case "ko": return "출발어"
+            case "ru": return "Исходный язык"
+            case "es": return "Idioma de origen"
+            case "fr": return "Langue source"
+            case "en": return "Source Language"
+            default: return "源语言"
+            }
+        case "config_services":
+            switch currentResolvedLanguage {
+            case "zh-Hant": return "設定翻譯服務..."
+            case "ja": return "翻訳サービスを設定..."
+            case "ko": return "번역 서비스 설정..."
+            case "ru": return "Настройка сервисов..."
+            case "es": return "Configurar servicios..."
+            case "fr": return "Configurer les services..."
+            case "en": return "Configure Services..."
+            default: return "配置翻译服务..."
+            }
+        default:
+            return key
+        }
     }
 
     public func t(_ key: String, _ args: CVarArg...) -> String {

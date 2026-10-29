@@ -14,12 +14,6 @@
         }
       }
     },
-    "%@ (⌘,)" : {
-
-    },
-    "%@ (⌘Q)" : {
-
-    },
     "%@ %@" : {
       "localizations" : {
         "en" : {
@@ -2399,6 +2393,7 @@
       }
     },
     "clear_content" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7723,6 +7718,7 @@
       }
     },
     "quit_app" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8355,6 +8351,7 @@
       }
     },
     "settings_menu" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10289,6 +10286,7 @@
       }
     },
     "swap_languages" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -11437,6 +11435,7 @@
       }
     },
     "unpin_window" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

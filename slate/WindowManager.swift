@@ -276,6 +276,14 @@ final class WindowManager: NSObject, NSWindowDelegate, ObservableObject {
         window?.orderOut(nil)
     }
     
+    var isAlwaysOnTop: Bool {
+        !closeOnClickOutside
+    }
+    
+    func toggleAlwaysOnTop() {
+        setAlwaysOnTop(!isAlwaysOnTop)
+    }
+
     func setAlwaysOnTop(_ onTop: Bool) {
         window?.level = onTop ? .floating : .normal
         closeOnClickOutside = !onTop

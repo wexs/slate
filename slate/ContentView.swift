@@ -16,8 +16,8 @@ struct ContentView: View {
     @State private var showOCRFailureToast: Bool = false
     @State private var showFontSizeToast: Bool = false
     @State private var hideFontSizeToastTask: Task<Void, Never>? = nil
-    @State private var showSettingsMenu: Bool = false
-    @State private var pinOnTop: Bool = false
+    @State private var isSourceLangHovered: Bool = false
+    @State private var isTargetLangHovered: Bool = false
     @State private var scrollContentHeight: CGFloat = 0
     
     private var maxContentHeight: CGFloat {
@@ -36,7 +36,6 @@ struct ContentView: View {
         return min(scrollContentHeight, maxContentHeight)
     }
     
-    @AppStorage("app_clear_content_on_open") private var clearContentOnOpen: Bool = true
     @Environment(\.colorScheme) private var colorScheme
     private var isDark: Bool { colorScheme == .dark }
     
@@ -192,9 +191,13 @@ struct ContentView: View {
                 })
             }
             
-            // Action Bar below input: Speaker & Copy (shown when expanded)
+            // Action Bar below input: Source Language & Speaker & Copy (shown when expanded)
             if isExpanded && !service.inputText.isEmpty {
-                HStack(spacing: 8) {
+                HStack(alignment: .center, spacing: 8) {
+                    sourceLanguageSelector
+                    
+                    Spacer()
+                    
                     let isInputSpeaking = speechManager.isSpeaking && speechManager.speakingText == service.inputText
                     HoverCircleIconButton(
                         symbolName: isInputSpeaking ? "speaker.wave.3.fill" : "speaker.wave.2",
@@ -353,9 +356,13 @@ struct ContentView: View {
                         }
                     }
                     
-                    // Action Bar below translated text: Speaker & Copy
+                    // Action Bar below translated text: Target Language & Speaker & Copy
                     if !service.translatedText.isEmpty {
-                        HStack(spacing: 8) {
+                        HStack(alignment: .center, spacing: 8) {
+                            targetLanguageSelector
+                            
+                            Spacer()
+                            
                             let isTranslationSpeaking = speechManager.isSpeaking && speechManager.speakingText == service.translatedText
                             HoverCircleIconButton(
                                 symbolName: isTranslationSpeaking ? "speaker.wave.3.fill" : "speaker.wave.2",
@@ -426,218 +433,125 @@ struct ContentView: View {
         }
         .padding(.horizontal, 20)
         .padding(.top, 12)
-        .padding(.bottom, 10)
+        .padding(.bottom, 16)
         .transition(.opacity.combined(with: .move(edge: .top)))
     }
     
+    // MARK: - 语言选择组件
     @ViewBuilder
-    private var toolbarSection: some View {
-        HStack(alignment: .center) {
-            // Left Capsule: [ Auto ⌵  ⇄  英文 ⌵ ]
-            HStack(spacing: 4) {
-                // Source Language Picker
-                Menu {
-                    ForEach(AppLanguage.sourceLanguages) { lang in
-                        Button {
-                            service.setSource(lang)
-                        } label: {
-                            HStack {
-                                Text(lang.name)
-                                if lang == service.sourceLanguage {
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 5) {
-                        Text(service.sourceLanguage.name)
-                            .font(.system(size: 13, weight: .medium))
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(secondaryTextColor)
-                    }
-                    .foregroundColor(isDark ? Color.white.opacity(0.85) : Color.black.opacity(0.80))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .fixedSize()
-                
-                // Swap Button
-                Button {
-                    service.swapLanguages()
-                } label: {
-                    Image(systemName: "arrow.left.arrow.right")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(secondaryTextColor)
-                        .frame(width: 24, height: 24)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help(loc("swap_languages"))
-                
-                // Target Language Picker
-                Menu {
-                    ForEach(AppLanguage.targetLanguages) { lang in
-                        Button {
-                            service.setTarget(lang)
-                        } label: {
-                            HStack {
-                                Text(lang.name)
-                                if lang == service.targetLanguage {
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 5) {
-                        Text(service.effectiveTargetLanguage.name)
-                            .font(.system(size: 13, weight: .medium))
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(secondaryTextColor)
-                    }
-                    .foregroundColor(isDark ? Color.white.opacity(0.85) : Color.black.opacity(0.80))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .fixedSize()
-            }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .glassEffect(.clear, in: .capsule)
-            
-            // Provider Picker Capsule
-            Menu {
-                ForEach(TranslationProvider.allCases.filter { $0.isConfigured }) { provider in
-                    Button {
-                        service.setProvider(provider)
-                    } label: {
-                        HStack {
-                            Text(provider.title)
-                            if service.currentProvider == provider {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                }
-                
-                Divider()
-                
-                Button {
-                    SettingsWindowController.shared.showWindow(tab: .translation)
-                } label: {
-                    Label(loc("tab_translation"), systemImage: "slider.horizontal.3")
-                }
+    private var sourceLanguageSelector: some View {
+        Menu {
+            Button {
+                service.setSource(.auto)
             } label: {
-                HStack(spacing: 5) {
-                    ProviderIconView(provider: service.currentProvider, size: 13)
-                    Text(service.currentProvider.shortName)
-                        .font(.system(size: 12, weight: .medium))
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundColor(secondaryTextColor)
+                HStack {
+                    Text(loc("lang_auto"))
+                    if service.sourceLanguage.id == "auto" {
+                        Image(systemName: "checkmark")
+                    }
                 }
-                .foregroundColor(isDark ? Color.white.opacity(0.88) : Color.black.opacity(0.80))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .contentShape(Capsule())
-                .glassEffect(.clear, in: .capsule)
             }
-            .buttonStyle(.plain)
-            .help(loc("tab_translation"))
             
-            Spacer()
+            Divider()
             
-            // Right Settings Button (⚙)
-            Menu {
+            ForEach(AppLanguage.sourceLanguages.filter { $0.id != "auto" }) { lang in
                 Button {
-                    SettingsWindowController.shared.showWindow(tab: .general)
-                } label: {
-                    Label("\(loc("menu_preferences")) (⌘,)", systemImage: "gearshape")
-                }
-                
-                Button {
-                    clearContentOnOpen.toggle()
+                    service.setSource(lang)
                 } label: {
                     HStack {
-                        Text(loc("clear_on_open"))
-                        if clearContentOnOpen {
+                        Text(lang.name)
+                        if service.sourceLanguage.id == lang.id {
                             Image(systemName: "checkmark")
                         }
                     }
                 }
-                
-                Menu {
-                    Button {
-                        windowManager.setWidthMode(.standard)
-                    } label: {
-                        HStack {
-                            Text(loc("width_standard"))
-                            if windowManager.widthMode == .standard {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                    
-                    Button {
-                        windowManager.setWidthMode(.wide)
-                    } label: {
-                        HStack {
-                            Text(loc("width_wide"))
-                            if windowManager.widthMode == .wide {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                } label: {
-                    Label("\(loc("window_width")) (\(windowManager.widthMode.title))", systemImage: "arrow.left.and.right")
-                }
-                
-                Divider()
-                
-                Button {
-                    pinOnTop.toggle()
-                    WindowManager.shared.setAlwaysOnTop(pinOnTop)
-                } label: {
-                    Label(pinOnTop ? loc("unpin_window") : loc("pin_window"), systemImage: pinOnTop ? "pin.slash" : "pin")
-                }
-                
-                Button {
-                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                        service.inputText = ""
-                        service.translatedText = ""
-                        service.hasSubmitted = false
-                    }
-                } label: {
-                    Label(loc("clear_content"), systemImage: "trash")
-                }
-                
-                Divider()
-                
-                Button("\(loc("quit_app")) (⌘Q)") {
-                    NSApp.terminate(nil)
-                }
-            } label: {
-                HoverCircleIconView(
-                    symbolName: "gearshape",
-                    fontSize: 14,
-                    size: 28,
-                    isDark: isDark
-                )
             }
-            .buttonStyle(.plain)
-            .help(loc("settings_menu"))
+        } label: {
+            HStack(spacing: 3) {
+                Text(service.sourceLanguage.id == "auto" ? service.effectiveSourceLanguage.name : service.sourceLanguage.name)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundColor(isSourceLangHovered ? primaryTextColor : secondaryTextColor)
+                
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundColor(secondaryTextColor)
+                    .opacity(isSourceLangHovered ? 1.0 : 0.0)
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(
+                Capsule()
+                    .fill(isSourceLangHovered ? (isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06)) : Color.clear)
+            )
+            .contentShape(Capsule())
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 4)
-        .padding(.bottom, 16)
-        .transition(.opacity)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .offset(x: -6)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isSourceLangHovered = hovering
+            }
+        }
+        .help(loc("source_language"))
+    }
+    
+    @ViewBuilder
+    private var targetLanguageSelector: some View {
+        Menu {
+            Button {
+                service.setTarget(.autoSelect)
+            } label: {
+                HStack {
+                    Text(loc("lang_auto_select"))
+                    if service.targetLanguage.id == "auto" {
+                        Image(systemName: "checkmark")
+                    }
+                }
+            }
+            
+            Divider()
+            
+            ForEach(AppLanguage.concreteTargetLanguages) { lang in
+                Button {
+                    service.setTarget(lang)
+                } label: {
+                    HStack {
+                        Text(lang.name)
+                        if service.targetLanguage.id == lang.id {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Text(service.effectiveTargetLanguage.name)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundColor(isTargetLangHovered ? primaryTextColor : secondaryTextColor)
+                
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundColor(secondaryTextColor)
+                    .opacity(isTargetLangHovered ? 1.0 : 0.0)
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(
+                Capsule()
+                    .fill(isTargetLangHovered ? (isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06)) : Color.clear)
+            )
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .offset(x: -6)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isTargetLangHovered = hovering
+            }
+        }
+        .help(loc("target_language"))
     }
 
     var body: some View {
@@ -658,8 +572,9 @@ struct ContentView: View {
                         GeometryReader { geo in
                             Color.clear
                                 .task(id: geo.size.height) {
-                                    let h = geo.size.height
-                                    if h > 0 && abs(scrollContentHeight - h) > 1.0 {
+                                    let h: CGFloat = geo.size.height
+                                    let diff: CGFloat = abs(scrollContentHeight - h)
+                                    if h > 0 && diff > 1.0 {
                                         scrollContentHeight = h
                                     }
                                 }
@@ -667,10 +582,6 @@ struct ContentView: View {
                     )
                 }
                 .frame(height: currentContentHeight)
-                
-                if isExpanded {
-                    toolbarSection
-                }
             }
             .frame(width: windowManager.widthMode.cardWidth)
             .fixedSize(horizontal: false, vertical: true)

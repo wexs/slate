@@ -73,7 +73,7 @@ final class TranslationService: ObservableObject {
     
     @Published var sourceLanguage: AppLanguage = .auto
     @Published var targetLanguage: AppLanguage = .autoSelect
-    private var detectedSourceLanguage: AppLanguage? = nil
+    @Published public private(set) var detectedSourceLanguage: AppLanguage? = nil
     private var lastTranslatedPairKey: String = ""
     
     @Published var primaryLanguage: AppLanguage {
